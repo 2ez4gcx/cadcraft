@@ -1595,15 +1595,15 @@ pub struct RectangModes {
 /// shorter side leave each corner as two coincident vertices.
 fn rect_corner_vertices((w, h): (f64, f64), fillet: f64, chamfer: (f64, f64)) -> Vec<PolyVertex> {
     let corners = [Vec2::ZERO, Vec2::new(w, 0.0), Vec2::new(w, h), Vec2::new(0.0, h)];
-    let (d_in, d_out, bulge) = if fillet > 0.0 {
-        let b = cadcraft_geom::arc_to_bulge(std::f64::consts::FRAC_PI_2);
-        (fillet, fillet, if w * h < 0.0 { -b } else { b })
-    } else if chamfer.0 > 0.0 && chamfer.1 > 0.0 {
-        (chamfer.0, chamfer.1, 0.0)
-    } else {
-        return corners.into_iter().map(PolyVertex::new).collect();
+    let Some((d_in, d_out)) = corner_cuts(fillet, chamfer) else { return corners.into_iter().map(PolyVertex::new).collect() };
+    // A fillet's quarter circle bulges the way the rectangle runs; a chamfer is straight.
+    let quarter = cadcraft_geom::arc_to_bulge(std::f64::consts::FRAC_PI_2);
+    let bulge = match (fillet > 0.0, w * h < 0.0) {
+        (false, _) => 0.0,
+        (true, false) => quarter,
+        (true, true) => -quarter,
     };
-    let fits = d_in + d_out <= w.abs().min(h.abs()) * (1.0 + 1e-12);
+    let fits = corners_fit((w, h), fillet, chamfer);
     let mut out = Vec::with_capacity(8);
     for (i, c) in corners.iter().enumerate() {
         let (Some(prev), Some(next)) = (corners.get((i + 3) % 4), corners.get((i + 1) % 4)) else { continue };
@@ -1615,6 +1615,23 @@ fn rect_corner_vertices((w, h): (f64, f64), fillet: f64, chamfer: (f64, f64)) ->
         }
     }
     out
+}
+
+/// How far a fillet or chamfer cuts into the edges into and out of each corner, if one is set.
+fn corner_cuts(fillet: f64, chamfer: (f64, f64)) -> Option<(f64, f64)> {
+    if fillet > 0.0 {
+        Some((fillet, fillet))
+    } else if chamfer.0 > 0.0 && chamfer.1 > 0.0 {
+        Some(chamfer)
+    } else {
+        None
+    }
+}
+
+/// Whether the fillet or chamfer fits the shorter side of a `w` × `h` rectangle (else its
+/// corners stay square).
+fn corners_fit((w, h): (f64, f64), fillet: f64, chamfer: (f64, f64)) -> bool {
+    corner_cuts(fillet, chamfer).is_none_or(|(d_in, d_out)| d_in + d_out <= w.abs().min(h.abs()) * (1.0 + 1e-12))
 }
 
 /// The area the rounded or cut corners take off the full rectangle: AutoCAD's Area option sizes
@@ -1629,6 +1646,15 @@ fn corner_cut(fillet: f64, chamfer: (f64, f64)) -> f64 {
     }
 }
 
+/// The sides of the rectangle of `area` whose length (or, with `breadth`, width) is `side`: the
+/// corners' cut is added back so the outline encloses the area, unless the corners then don't fit
+/// and stay square, when the area is the full rectangle's.
+fn area_sides(area: f64, side: f64, breadth: bool, fillet: f64, chamfer: (f64, f64)) -> (f64, f64) {
+    let sides = |a: f64| if breadth { (a / side, side) } else { (side, a / side) };
+    let cut = sides(area + corner_cut(fillet, chamfer));
+    if corners_fit(cut, fillet, chamfer) { cut } else { sides(area) }
+}
+
 fn rect_kind(first: Vec2, (w, h): (f64, f64), rot: f64, fillet: f64, chamfer: (f64, f64), width: f64, elevation: f64) -> EntityKind {
     let local = rect_corner_vertices((w, h), fillet, chamfer);
     let vs = local.into_iter().map(|v| PolyVertex { p: first + v.p.rotate(rot), ..v }).collect();
@@ -1641,9 +1667,9 @@ fn rect_kind(first: Vec2, (w, h): (f64, f64), rot: f64, fillet: f64, chamfer: (f
 }
 
 /// The width and height of a rectangle from its `dimensions`, its `p2` corner, its `area` with
-/// `length` or `breadth` (plus `cut`, the area its corners take off), or its second corner `p2`,
-/// rotated by `rot` about `a`.
-fn rect_size(p: &Value, a: Vec2, rot: f64, centered: bool, cut: f64) -> Result<(f64, f64)> {
+/// `length` or `breadth` (allowing for the `fillet` or `chamfer` corners), or its second corner
+/// `p2`, rotated by `rot` about `a`.
+fn rect_size(p: &Value, a: Vec2, rot: f64, centered: bool, fillet: f64, chamfer: (f64, f64)) -> Result<(f64, f64)> {
     Ok(if let Some(d) = p.get("dimensions").and_then(Value::as_array) {
         let l = d.first().and_then(Value::as_f64).filter(|v| v.is_finite()).ok_or_else(|| bad("rectang", "dimensions: [length, width]"))?;
         let wd = d.get(1).and_then(Value::as_f64).filter(|v| v.is_finite()).ok_or_else(|| bad("rectang", "dimensions: [length, width]"))?;
@@ -1660,8 +1686,8 @@ fn rect_size(p: &Value, a: Vec2, rot: f64, centered: bool, cut: f64) -> Result<(
             return Err(bad("rectang", "area must be positive"));
         }
         match (p.get("length").and_then(Value::as_f64), p.get("breadth").and_then(Value::as_f64)) {
-            (Some(l), _) if l.is_finite() && l > 0.0 => (l, (area + cut) / l),
-            (_, Some(b)) if b.is_finite() && b > 0.0 => ((area + cut) / b, b),
+            (Some(l), _) if l.is_finite() && l > 0.0 => area_sides(area, l, false, fillet, chamfer),
+            (_, Some(b)) if b.is_finite() && b > 0.0 => area_sides(area, b, true, fillet, chamfer),
             _ => return Err(bad("rectang", "area needs `length` or `breadth`")),
         }
     } else {
@@ -1690,7 +1716,7 @@ pub(crate) fn run_rectang2(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let fillet = size_param("rectang", p, "fillet", true)?.unwrap_or(0.0);
     let width = size_param("rectang", p, "width", true)?.unwrap_or(0.0);
-    let (w, h) = rect_size(p, a, rot, centered, corner_cut(fillet, ch))?;
+    let (w, h) = rect_size(p, a, rot, centered, fillet, ch)?;
     if w.abs() < 1e-12 || h.abs() < 1e-12 || !w.is_finite() || !h.is_finite() {
         return Err(bad("rectang", "rectangle has no area"));
     }
@@ -1884,8 +1910,7 @@ impl Interactive for RectM2 {
                         self.asking = Some(a);
                         return Err(other("Value must be positive."));
                     }
-                    let area = self.area + corner_cut(self.fillet, self.chamfer);
-                    let (w, h) = if a == RAsk::AreaLength { (v, area / v) } else { (area / v, v) };
+                    let (w, h) = area_sides(self.area, v, a == RAsk::AreaWidth, self.fillet, self.chamfer);
                     return self.make(s, w, h);
                 }
                 RAsk::DimL => {

@@ -842,6 +842,23 @@ want {want:?}"
     assert!(p.elevation == 7.5 && e.common.thickness == 2.25);
 }
 
+/// Area allows for cut corners only while they fit: a fillet too large for the resulting sides
+/// leaves square corners, so the rectangle is the full area asked for (4 × 1, not 4 × 1.858).
+#[test]
+fn rectang_area_with_corners_too_large_stays_exact() {
+    let check = |s: &Session| {
+        let pts = rect_pts(s);
+        let b = cadcraft_geom::Bounds2::from_points(pts.clone());
+        assert!(near(b.min, 0.0, 0.0) && near(b.max, 4.0, 1.0), "{pts:?}");
+        assert!(pts.len() == 8 && pts.chunks(2).all(|c| c[0] == c[1]), "{pts:?}");
+    };
+    let mut s = Session::new();
+    s.cmdline("rectang _F 2 0,0 _A 4 _L 4").unwrap();
+    check(&s);
+    s.execute("rectang", &json!({"p1": [0, 0], "area": 4, "length": 4, "fillet": 2})).unwrap();
+    check(&s);
+}
+
 /// Guards the JSON `center: true` form for every sizing route: a picked corner mirrored about
 /// the centre, full-size `dimensions`, full `area`, rotation about the centre, that the default
 /// corner mode is untouched, and that centre mode without a size is rejected.
