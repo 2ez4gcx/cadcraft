@@ -18,10 +18,13 @@ drawings behave differently from mid-sized ones. 3D geometry doesn't exist. Rema
 
 ## How this was measured
 
-Read from the source on 2026-10-10 (main at bd2412f), with file:line evidence in the tables. No
-numeric comparison against AutoCAD has been run yet: the plan is a set of synthetic drawings whose
-exact answers are known analytically, measured in both apps black-box (LIST, ID, AREA results)
-and in CADCraft headless. Until then the percentages are judgements.
+Read from the source on 2026-10-10 (main at bd2412f), with file:line evidence in the tables. The
+one numeric comparison against AutoCAD so far is ELLIPSE from axis endpoints (2026-10-26): 11
+typed inputs measured black-box in AutoCAD 2024 (accoreconsole, read back with `entget`) and
+pinned by `ellipse_axis_endpoints_match_autocad`. Everything else is still to be measured: the
+plan is a set of synthetic drawings whose exact answers are known analytically, measured in both
+apps black-box (LIST, ID, AREA results) and in CADCraft headless. Until then the percentages are
+judgements.
 
 Weights (how much AutoCAD users lean on each area in 2D drafting): numeric robustness 15%,
 curve representation 10%, intersections 15%, offsets 15%, trim/extend/fillet/chamfer/break/join
