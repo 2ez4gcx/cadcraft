@@ -7,7 +7,7 @@ use cadcraft_geom::{Arc, Circle, Ellipse, Line, PolyVertex, Polyline, Spline, TA
 use serde_json::{Value, json};
 
 use super::curves::{self, Chain, MAX_GEN, TanObj};
-use super::helpers::{arc, circle, line, lwpoly, rect_vertices, rect_with_corners, v3};
+use super::helpers::{arc, circle, line, lwpoly, rect_vertices, v3};
 
 use super::machines::number;
 use super::{CommandSpec, bad, bool_or, f64_or, f64_req, point_param, point_req, point_value, points_param, size_param, str_param, targets};
@@ -1574,8 +1574,63 @@ impl Interactive for XlineM2 {
 // RECTANG with Area / Dimensions / Rotation / Width / Elevation / Thickness
 // =====================================================================================
 
+/// RECTANG's corner options, remembered between invocations as AutoCAD remembers them
+/// ("Current rectangle modes:  Fillet=2.0000", "Elevation=7.5000  Thickness=2.2500  Rotation=30.96").
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RectangModes {
+    pub chamfer: (f64, f64),
+    pub fillet: f64,
+    pub width: f64,
+    pub elevation: f64,
+    pub thickness: f64,
+    /// Radians.
+    pub rotation: f64,
+}
+
+/// The vertices of the rectangle from the origin to the opposite corner `(w, h)` (signed), as
+/// AutoCAD lists them: from the first corner along the first axis, so counterclockwise when `w`
+/// and `h` share a sign and clockwise otherwise. A fillet or chamfer replaces each corner by the
+/// point on the edge into it (where the fillet arc starts, or the first chamfer distance) and
+/// the point on the edge out of it (the second chamfer distance). Corners too large for the
+/// shorter side leave each corner as two coincident vertices.
+fn rect_corner_vertices((w, h): (f64, f64), fillet: f64, chamfer: (f64, f64)) -> Vec<PolyVertex> {
+    let corners = [Vec2::ZERO, Vec2::new(w, 0.0), Vec2::new(w, h), Vec2::new(0.0, h)];
+    let (d_in, d_out, bulge) = if fillet > 0.0 {
+        let b = cadcraft_geom::arc_to_bulge(std::f64::consts::FRAC_PI_2);
+        (fillet, fillet, if w * h < 0.0 { -b } else { b })
+    } else if chamfer.0 > 0.0 && chamfer.1 > 0.0 {
+        (chamfer.0, chamfer.1, 0.0)
+    } else {
+        return corners.into_iter().map(PolyVertex::new).collect();
+    };
+    let fits = d_in + d_out <= w.abs().min(h.abs()) * (1.0 + 1e-12);
+    let mut out = Vec::with_capacity(8);
+    for (i, c) in corners.iter().enumerate() {
+        let (Some(prev), Some(next)) = (corners.get((i + 3) % 4), corners.get((i + 1) % 4)) else { continue };
+        if fits {
+            out.push(PolyVertex::with_bulge(*c - (*c - *prev).normalized() * d_in, bulge));
+            out.push(PolyVertex::new(*c + (*next - *c).normalized() * d_out));
+        } else {
+            out.extend([PolyVertex::new(*c), PolyVertex::new(*c)]);
+        }
+    }
+    out
+}
+
+/// The area the rounded or cut corners take off the full rectangle: AutoCAD's Area option sizes
+/// the rectangle so its outline, corners included, encloses the area asked for.
+fn corner_cut(fillet: f64, chamfer: (f64, f64)) -> f64 {
+    if fillet > 0.0 {
+        (4.0 - std::f64::consts::PI) * fillet * fillet
+    } else if chamfer.0 > 0.0 && chamfer.1 > 0.0 {
+        2.0 * chamfer.0 * chamfer.1
+    } else {
+        0.0
+    }
+}
+
 fn rect_kind(first: Vec2, (w, h): (f64, f64), rot: f64, fillet: f64, chamfer: (f64, f64), width: f64, elevation: f64) -> EntityKind {
-    let local = rect_with_corners(Vec2::ZERO, Vec2::new(w, h), fillet, chamfer);
+    let local = rect_corner_vertices((w, h), fillet, chamfer);
     let vs = local.into_iter().map(|v| PolyVertex { p: first + v.p.rotate(rot), ..v }).collect();
     let mut k = lwpoly(vs, true);
     if let EntityKind::LwPolyline(pl) = &mut k {
@@ -1586,8 +1641,9 @@ fn rect_kind(first: Vec2, (w, h): (f64, f64), rot: f64, fillet: f64, chamfer: (f
 }
 
 /// The width and height of a rectangle from its `dimensions`, its `p2` corner, its `area` with
-/// `length` or `breadth`, or its second corner `p2`, rotated by `rot` about `a`.
-fn rect_size(p: &Value, a: Vec2, rot: f64, centered: bool) -> Result<(f64, f64)> {
+/// `length` or `breadth` (plus `cut`, the area its corners take off), or its second corner `p2`,
+/// rotated by `rot` about `a`.
+fn rect_size(p: &Value, a: Vec2, rot: f64, centered: bool, cut: f64) -> Result<(f64, f64)> {
     Ok(if let Some(d) = p.get("dimensions").and_then(Value::as_array) {
         let l = d.first().and_then(Value::as_f64).filter(|v| v.is_finite()).ok_or_else(|| bad("rectang", "dimensions: [length, width]"))?;
         let wd = d.get(1).and_then(Value::as_f64).filter(|v| v.is_finite()).ok_or_else(|| bad("rectang", "dimensions: [length, width]"))?;
@@ -1604,8 +1660,8 @@ fn rect_size(p: &Value, a: Vec2, rot: f64, centered: bool) -> Result<(f64, f64)>
             return Err(bad("rectang", "area must be positive"));
         }
         match (p.get("length").and_then(Value::as_f64), p.get("breadth").and_then(Value::as_f64)) {
-            (Some(l), _) if l.is_finite() && l > 0.0 => (l, area / l),
-            (_, Some(b)) if b.is_finite() && b > 0.0 => (area / b, b),
+            (Some(l), _) if l.is_finite() && l > 0.0 => (l, (area + cut) / l),
+            (_, Some(b)) if b.is_finite() && b > 0.0 => ((area + cut) / b, b),
             _ => return Err(bad("rectang", "area needs `length` or `breadth`")),
         }
     } else {
@@ -1634,7 +1690,7 @@ pub(crate) fn run_rectang2(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let fillet = size_param("rectang", p, "fillet", true)?.unwrap_or(0.0);
     let width = size_param("rectang", p, "width", true)?.unwrap_or(0.0);
-    let (w, h) = rect_size(p, a, rot, centered)?;
+    let (w, h) = rect_size(p, a, rot, centered, corner_cut(fillet, ch))?;
     if w.abs() < 1e-12 || h.abs() < 1e-12 || !w.is_finite() || !h.is_finite() {
         return Err(bad("rectang", "rectangle has no area"));
     }
@@ -1695,7 +1751,19 @@ impl RectM2 {
         // A rectangle has its own thickness option and does not take THICKNESS.
         let t = self.thickness;
         s.doc_mut()?.modify_entity(hd, |e| e.common.thickness = t)?;
+        self.remember(s);
         Ok(Step::Done)
+    }
+    /// Keeps the corner options for the next RECTANG.
+    fn remember(&self, s: &mut Session) {
+        s.last_used.rectang = RectangModes {
+            chamfer: self.chamfer,
+            fillet: self.fillet,
+            width: self.width,
+            elevation: self.elevation,
+            thickness: self.thickness,
+            rotation: self.rotation,
+        };
     }
     /// The rectangle's local origin (the corner `rect_kind` draws from) for a size: the first
     /// point itself as a corner, or the first point less half the size around the centre.
@@ -1721,6 +1789,17 @@ impl RectM2 {
 impl Interactive for RectM2 {
     fn name(&self) -> &'static str {
         "RECTANG"
+    }
+    /// Starts from the corner options the last RECTANG used.
+    fn begin(&mut self, s: &mut Session) -> Result<Step> {
+        let m = s.last_used.rectang;
+        self.chamfer = m.chamfer;
+        self.fillet = m.fillet;
+        self.width = m.width;
+        self.elevation = m.elevation;
+        self.thickness = m.thickness;
+        self.rotation = m.rotation;
+        Ok(Step::Continue)
     }
     /// Asks for the pending option's value, or for the first and second points; in centre mode
     /// the first prompt asks for the centre instead of a corner.
@@ -1774,8 +1853,15 @@ impl Interactive for RectM2 {
                     self.chamfer.1 = self.chamfer.0;
                     self.asking = Some(RAsk::Chamfer2);
                 }
-                RAsk::Chamfer2 => self.chamfer.1 = val(&i, self.chamfer.1)?.max(0.0),
-                RAsk::Fillet => self.fillet = val(&i, self.fillet)?.max(0.0),
+                // A rectangle's corners are chamfered or filleted: the option set last wins.
+                RAsk::Chamfer2 => {
+                    self.chamfer.1 = val(&i, self.chamfer.1)?.max(0.0);
+                    self.fillet = 0.0;
+                }
+                RAsk::Fillet => {
+                    self.fillet = val(&i, self.fillet)?.max(0.0);
+                    self.chamfer = (0.0, 0.0);
+                }
                 RAsk::Width => self.width = val(&i, self.width)?.max(0.0),
                 RAsk::Elevation => self.elevation = val(&i, self.elevation)?,
                 RAsk::Thickness => self.thickness = val(&i, self.thickness)?,
@@ -1798,7 +1884,8 @@ impl Interactive for RectM2 {
                         self.asking = Some(a);
                         return Err(other("Value must be positive."));
                     }
-                    let (w, h) = if a == RAsk::AreaLength { (v, self.area / v) } else { (self.area / v, v) };
+                    let area = self.area + corner_cut(self.fillet, self.chamfer);
+                    let (w, h) = if a == RAsk::AreaLength { (v, area / v) } else { (area / v, v) };
                     return self.make(s, w, h);
                 }
                 RAsk::DimL => {
@@ -1827,6 +1914,7 @@ impl Interactive for RectM2 {
                     }
                 }
             }
+            self.remember(s);
             return Ok(Step::Continue);
         }
         match i {
