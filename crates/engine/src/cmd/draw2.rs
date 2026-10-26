@@ -794,10 +794,13 @@ fn run_measure(s: &mut Session, p: &Value) -> Result<Value> {
     }
     let block = str_param(p, "block").map(str::to_string);
     check_block(s, block.as_deref())?;
+    // AutoCAD measures from the end the pick is nearer by the curve's parameter (segment index
+    // plus the fraction along it), not by distance: an open curve from its end once the pick is
+    // halfway or further, a closed one from its first vertex, backwards from halfway on. A
+    // circle always runs counterclockwise from angle 0.
     if let Some(from) = point_param(p, "from")
-        && !c.closed
-        && let (Some(a), Some(b)) = (c.start(), c.end())
-        && from.dist(b) < from.dist(a)
+        && !matches!(curves::entity(s, h)?.kind, EntityKind::Circle(_))
+        && c.param_of(from) >= c.segs.len() as f64 / 2.0
     {
         c = c.reversed();
     }
