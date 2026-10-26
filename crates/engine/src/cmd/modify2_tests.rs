@@ -872,4 +872,9 @@ fn stretch_arcs_bulges_and_splines_match_autocad() {
             (k, _) => panic!("{window:?}: {k:?}"),
         }
     }
+    // A stretch that brings an arc segment's ends together leaves no arc to keep: the bulge goes.
+    let mut s = Session::new();
+    let p = pline(&mut s, json!([{"p": [0, 0], "bulge": 0.5}, [10, 0], [20, 0]]), false);
+    s.execute("stretch", &json!({"window": [[9, -1], [11, 1]], "delta": [-10, 0]})).unwrap();
+    assert_eq!(poly(&kind(&s, &p)).vertices.iter().map(|v| v.bulge).collect::<Vec<_>>(), [0.0, 0.0, 0.0]);
 }

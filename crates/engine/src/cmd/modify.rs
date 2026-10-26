@@ -238,9 +238,16 @@ fn add_mline_vertex_hits(d: &cadcraft_doc::Drawing, space: &cadcraft_doc::Space,
 }
 
 /// Move the vertices of `e` that lie inside any of the areas `wins` by `d` (STRETCH).
-/// The bulge that keeps an arc's height (bulge × chord / 2) when its chord changes length.
+/// The bulge that keeps an arc's height (bulge × chord / 2) when its chord changes length; none
+/// once the chord collapses to a point, which has no arc left to keep.
 fn keep_height(bulge: f64, old_chord: f64, new_chord: f64) -> f64 {
-    if new_chord > 1e-12 && old_chord.is_finite() { bulge * old_chord / new_chord } else { bulge }
+    if new_chord.is_nan() || new_chord <= 1e-12 {
+        0.0
+    } else if old_chord.is_finite() {
+        bulge * old_chord / new_chord
+    } else {
+        bulge
+    }
 }
 
 fn stretch_entity(e: &mut Entity, wins: &[StretchArea], d: Vec2) {
