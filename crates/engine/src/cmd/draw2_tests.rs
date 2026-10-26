@@ -476,6 +476,19 @@ fn divide_and_measure_match_autocad() {
     }
 }
 
+/// A spline's end is chosen by its own parameter: this one spends half its parameter range on a
+/// zero-length first span, so a pick at x = 3 is already past its middle (parameter 1.3 of 0..2) and
+/// MEASURE runs from the end, though x = 3 is short of the middle of the drawn length.
+#[test]
+fn measure_spline_by_its_own_parameter() {
+    let mut s = Session::new();
+    let sp = h(&s.execute("spline", &json!({"control": [[0, 0], [0, 0], [10, 0]], "degree": 1})).unwrap());
+    s.execute("measure", &json!({"handle": sp, "length": 3, "from": [3, 0]})).unwrap();
+    let pts: Vec<Vec2> =
+        s.doc().unwrap().model.iter().filter_map(|e| if let EntityKind::Point(p) = &e.kind { Some(p.p.xy()) } else { None }).collect();
+    assert!(pts.len() == 3 && [7.0, 4.0, 1.0].iter().all(|x| pts.iter().any(|p| near(*p, *x, 0.0))), "{pts:?}");
+}
+
 #[test]
 fn divide_and_measure_command_line() {
     let mut s = Session::new();
