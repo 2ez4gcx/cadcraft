@@ -489,6 +489,92 @@ fn measure_spline_by_its_own_parameter() {
     assert!(pts.len() == 3 && [7.0, 4.0, 1.0].iter().all(|x| pts.iter().any(|p| near(*p, *x, 0.0))), "{pts:?}");
 }
 
+/// MEASURE counts every vertex in a polyline's parameter, coincident ones too (AutoCAD's polyline
+/// parameter is the vertex index; the chain drops zero-length spans), and picks an ellipse's end
+/// by the ellipse parameter like any other curve: AutoCAD 2024 runs both measured cases below from
+/// the end (black-box, accoreconsole, POINTs read back with `entget`).
+#[test]
+fn measure_counts_coincident_vertices_and_runs_ellipses_by_parameter() {
+    let pts = |s: &Session| -> Vec<Vec2> {
+        s.doc().unwrap().model.iter().filter_map(|e| if let EntityKind::Point(p) = &e.kind { Some(p.p.xy()) } else { None }).collect()
+    };
+    // (0,0) (1,0) (101,0) (101,0) picked at x = 1.1: parameter 1.001 of 3, before the middle, so
+    // from the start (the chain alone, 1.001 of 2, ran it from the end).
+    let mut s = Session::new();
+    let pl = h(&s.execute("pline", &json!({"vertices": [[0, 0], [1, 0], [101, 0], [101, 0]]})).unwrap());
+    s.execute("measure", &json!({"handle": pl, "length": 30, "from": [1.1, 0]})).unwrap();
+    assert!(pts(&s).iter().any(|p| near(*p, 30.0, 0.0)), "{:?}", pts(&s));
+    // (0,0) (0,0) (10,0) (20,0) picked at x = 7: parameter 1.7 of 3, past the middle, so from the
+    // end; the same as a 3D polyline.
+    for (cmd, params) in [
+        ("pline", json!({"vertices": [[0, 0], [0, 0], [10, 0], [20, 0]]})),
+        ("3dpoly", json!({"points": [[0, 0, 0], [0, 0, 0], [10, 0, 0], [20, 0, 0]]})),
+    ] {
+        let mut s = Session::new();
+        let pl = h(&s.execute(cmd, &params).unwrap());
+        s.execute("measure", &json!({"handle": pl, "length": 3, "from": [7, 0]})).unwrap();
+        assert!(pts(&s).iter().any(|p| near(*p, 17.0, 0.0)), "{cmd}: {:?}", pts(&s));
+    }
+    // AutoCAD's points. CADCraft measures along a tessellation (1e-4 of the major axis), so its
+    // points sit within 2e-4 of the axis of AutoCAD's; the other end is 4 to 200 units away.
+    type Ellipse = ([f64; 2], [f64; 2], f64, f64, f64);
+    let cases: [((Ellipse, f64, [f64; 2]), &[[f64; 2]]); 2] = [
+        // MEASURE-032-TO: a full ellipse picked at t = pi.
+        (
+            (([-35000.0, 81000.0], [1000.0, 250.0], 0.5, 0.0, std::f64::consts::TAU), 325.0, [-36000.0, 80750.0]),
+            &[
+                [-36005.13895764338, 80852.59066530415],
+                [-35871.99367437639, 80574.74515309861],
+                [-35846.48143804769, 81129.79467385833],
+                [-35585.0606965763, 81321.20806711384],
+                [-35570.69066464184, 80460.16118260568],
+                [-35288.01208649818, 81451.990340526],
+                [-35246.80459288685, 80443.34080344986],
+                [-34973.3365764063, 81531.8855660685],
+                [-34925.28109250207, 80488.09750605426],
+                [-34649.89308676404, 81558.94977503068],
+                [-34615.08169799787, 80583.88008545575],
+                [-34328.55263503237, 81517.06267451325],
+                [-34326.49236487653, 80732.20222770158],
+                [-34085.24055588816, 80947.67206458953],
+                [-34052.78599900089, 81354.8654746607],
+            ],
+        ),
+        // MEASURE-033: an elliptical arc picked past its middle.
+        (
+            (([0.0, 0.0], [20.0, 5.0], 0.5, 0.5, 4.0), 4.25, [-14.28970951093154, -10.073417468999274]),
+            &[
+                [-20.14815072114992, -3.432193431111516],
+                [-18.74987859459168, -7.329883069345779],
+                [-18.68559214389327, 0.5029121733397516],
+                [-15.81338990685036, 3.617741906558092],
+                [-15.26656288688172, -9.70206428611582],
+                [-12.33992351852055, 6.057945492888583],
+                [-8.547503008323163, 7.9699830580747],
+                [-4.557798848614094, 9.428419587410612],
+                [-0.4368018715850841, 10.45983604769949],
+                [3.769519107506058, 11.05284388252232],
+                [8.015496424961295, 11.15319778065308],
+                [12.22912105170455, 10.6383262710487],
+                [16.23125506912425, 9.247174221779819],
+            ],
+        ),
+    ];
+    for (((center, major, ratio, t0, t1), length, from), want) in cases {
+        let mut s = Session::new();
+        let e = h(&s
+            .execute("ellipse", &json!({"center": center, "major": major, "ratio": ratio, "start": t0.to_degrees(), "end": t1.to_degrees()}))
+            .unwrap());
+        s.execute("measure", &json!({"handle": e, "length": length, "from": from})).unwrap();
+        let got = pts(&s);
+        let tol = 2e-4 * major[0].hypot(major[1]);
+        assert_eq!(got.len(), want.len(), "{got:?}");
+        for w in want {
+            assert!(got.iter().any(|p| p.dist(Vec2::new(w[0], w[1])) < tol), "no point near {w:?} in {got:?}");
+        }
+    }
+}
+
 #[test]
 fn divide_and_measure_command_line() {
     let mut s = Session::new();

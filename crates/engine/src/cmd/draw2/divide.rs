@@ -84,6 +84,22 @@ pub(super) fn run_measure(s: &mut Session, p: &Value) -> Result<Value> {
                 let (lo, hi) = sp.domain();
                 curves::spline_param_of(&sp, from) >= (lo + hi) / 2.0
             }
+            // Polylines by their vertices, coincident ones included (one parameter unit each,
+            // as in AutoCAD), which the chain drops.
+            EntityKind::LwPolyline(pl) => {
+                let n = pl.vertices.len();
+                let spans: Vec<_> = (0..if pl.closed { n } else { n.saturating_sub(1) })
+                    .filter_map(|i| Some((pl.vertices.get(i)?.p, pl.vertices.get((i + 1) % n)?.p, pl.vertices.get(i)?.bulge)))
+                    .collect();
+                curves::vertex_param_of(&spans, from) >= spans.len() as f64 / 2.0
+            }
+            EntityKind::Polyline3d(pl) => {
+                let n = pl.points.len();
+                let spans: Vec<_> = (0..if pl.closed { n } else { n.saturating_sub(1) })
+                    .filter_map(|i| Some((pl.points.get(i)?.xy(), pl.points.get((i + 1) % n)?.xy(), 0.0)))
+                    .collect();
+                curves::vertex_param_of(&spans, from) >= spans.len() as f64 / 2.0
+            }
             _ => c.param_of(from) >= c.segs.len() as f64 / 2.0,
         };
         if past_half {
