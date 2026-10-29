@@ -840,6 +840,19 @@ fn stretch_arcs_bulges_and_splines_match_autocad() {
             [[40.0, 15.0], [50.0, 25.0]],
             Want::Bulges(&[0.0, -1.230335090483974, 0.0, 0.0]),
         ),
+        // SX3-SPL-CV-ONLY: a window holding a control point but missing the drawn curve selects
+        // nothing in AutoCAD ("0 found"), so the spline stays as it was.
+        (
+            ("spline", json!({"control": [[0.0, 0.0], [10.0, 100.0], [20.0, 100.0], [30.0, 0.0]], "degree": 3})),
+            [[5.0, 95.0], [15.0, 105.0]],
+            Want::Control(&[[0.0, 0.0], [10.0, 100.0], [20.0, 100.0], [30.0, 0.0]]),
+        ),
+        // SX3-SPL-CV-CROSS: the same control point in a window that also crosses the curve moves.
+        (
+            ("spline", json!({"control": [[0.0, 0.0], [10.0, 100.0], [20.0, 100.0], [30.0, 0.0]], "degree": 3})),
+            [[5.0, 40.0], [15.0, 105.0]],
+            Want::Control(&[[0.0, 0.0], [15.0, 103.0], [20.0, 100.0], [30.0, 0.0]]),
+        ),
         // SX-SPL: two control points inside.
         (
             ("spline", json!({"control": [[0.0, 0.0], [10.0, 10.0], [20.0, 0.0], [30.0, 10.0]], "degree": 3})),

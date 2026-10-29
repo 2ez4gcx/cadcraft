@@ -83,7 +83,9 @@ fn stretch_entity(e: &mut Entity, wins: &[StretchArea], d: Vec2) {
         EntityKind::MLine(m) => m.vertices.iter_mut().for_each(|v| mv(&mut v.p)),
         EntityKind::Arc(a) => {
             // AutoCAD moves the ends inside the area and keeps the arc's height (bulge × chord / 2);
-            // the centre alone moves nothing.
+            // the centre alone moves nothing. An end stretched onto the other leaves the arc as it
+            // was: AutoCAD collapses it into a zero-radius arc at that point (radius 6e-16, start
+            // 180°, end 0°), an object nothing can draw or pick, which CADCraft does not make.
             let g = Arc::new(a.center.xy(), a.radius, a.start, a.end);
             let (s0, e0) = (g.start_point(), g.end_point());
             let (s1, e1) = (if inside(s0) { s0 + d } else { s0 }, if inside(e0) { e0 + d } else { e0 });
