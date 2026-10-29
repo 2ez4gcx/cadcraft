@@ -1261,6 +1261,16 @@ fn pline_undo_mode_and_plinewid_match_autocad() {
     .unwrap();
     s.cmdline("").unwrap();
     assert_eq!(s.doc().unwrap().header.f64("PLINEWID", 0.0), 1.0);
+    // PLINEWID is an ordinary system variable: 0 until set, typed at the command line or set
+    // with SETVAR, and that width is where the next polyline starts.
+    let mut s = Session::new();
+    let r = s.execute("getvar", &json!({"name": "PLINEWID"})).unwrap();
+    assert_eq!(r["value"].as_f64(), Some(0.0), "{r}");
+    s.cmdline("plinewid 0.5").unwrap();
+    assert_eq!(s.doc().unwrap().header.f64("PLINEWID", 0.0), 0.5);
+    s.cmdline("pline 0,0 10,0").unwrap();
+    s.cmdline("").unwrap();
+    assert!(matches!(&s.doc().unwrap().model.last().unwrap().kind, EntityKind::LwPolyline(p) if p.const_width == 0.5));
 }
 
 #[test]
