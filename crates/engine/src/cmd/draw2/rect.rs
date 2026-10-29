@@ -246,7 +246,8 @@ impl Interactive for RectM2 {
     fn name(&self) -> &'static str {
         "RECTANG"
     }
-    /// Starts from the corner options the last RECTANG used.
+    /// Starts from the corner options the last RECTANG used, and says which are on, as AutoCAD
+    /// does ("Current rectangle modes:  Chamfer=1.6574 x 2.8497  Rotation=50.50").
     fn begin(&mut self, s: &mut Session) -> Result<Step> {
         let m = s.last_used.rectang;
         self.chamfer = m.chamfer;
@@ -255,6 +256,29 @@ impl Interactive for RectM2 {
         self.elevation = m.elevation;
         self.thickness = m.thickness;
         self.rotation = m.rotation;
+        let mut on = Vec::new();
+        if m.chamfer.0 > 0.0 || m.chamfer.1 > 0.0 {
+            on.push(format!("Chamfer={:.4} x {:.4}", m.chamfer.0, m.chamfer.1));
+        }
+        if m.elevation != 0.0 {
+            on.push(format!("Elevation={:.4}", m.elevation));
+        }
+        if m.fillet > 0.0 {
+            on.push(format!("Fillet={:.4}", m.fillet));
+        }
+        if m.thickness != 0.0 {
+            on.push(format!("Thickness={:.4}", m.thickness));
+        }
+        if m.width > 0.0 {
+            on.push(format!("Width={:.4}", m.width));
+        }
+        let rotation = m.rotation.to_degrees().rem_euclid(360.0);
+        if rotation > 1e-9 && rotation < 360.0 - 1e-9 {
+            on.push(format!("Rotation={rotation:.2}"));
+        }
+        if !on.is_empty() {
+            s.echo(format!("Current rectangle modes:  {}", on.join("  ")));
+        }
         Ok(Step::Continue)
     }
     /// Asks for the pending option's value, or for the first and second points; in centre mode

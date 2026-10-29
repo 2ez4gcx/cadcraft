@@ -842,6 +842,26 @@ want {want:?}"
     assert!(p.elevation == 7.5 && e.common.thickness == 2.25);
 }
 
+/// The options a RECTANG carries over are named when it starts, in AutoCAD's words (its log for
+/// the same inputs: "Current rectangle modes:  Chamfer=1.6574 x 2.8497  Rotation=50.50" and
+/// "Current rectangle modes:  Elevation=7.5000  Thickness=2.2500  Rotation=30.96"); none, no line.
+#[test]
+fn rectang_names_the_modes_it_carries_over() {
+    let modes = |s: &Session| s.log.iter().filter(|l| l.starts_with("Current rectangle modes:")).cloned().collect::<Vec<_>>();
+    let mut s = Session::new();
+    s.start("rectang").unwrap();
+    s.cancel();
+    assert!(modes(&s).is_empty());
+    s.cmdline("rectang _C 1.6573799714125943 2.8497357251231277 0,0 _R 50.50299224048081 10,5").unwrap();
+    s.start("rectang").unwrap();
+    s.cancel();
+    assert_eq!(modes(&s), ["Current rectangle modes:  Chamfer=1.6574 x 2.8497  Rotation=50.50"]);
+    let mut s = Session::new();
+    s.cmdline("rectang _E 7.5 _T 2.25 0,0 _R _P 0,0 10,6 10,20").unwrap();
+    s.start("rectang").unwrap();
+    assert_eq!(modes(&s), ["Current rectangle modes:  Elevation=7.5000  Thickness=2.2500  Rotation=30.96"]);
+}
+
 /// Area allows for cut corners only while they fit: a fillet too large for the resulting sides
 /// leaves square corners, so the rectangle is the full area asked for (4 × 1, not 4 × 1.858).
 #[test]
