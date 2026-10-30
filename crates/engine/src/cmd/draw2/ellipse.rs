@@ -1,4 +1,4 @@
-use super::{Ellipse, EntityKind, Line, Result, Session, TAU, Value, Vec2, added, bad, f64_req, point_param, point_req, v3};
+use super::{Ellipse, EntityKind, Result, Session, TAU, Value, Vec2, added, bad, f64_req, point_param, point_req, v3};
 
 // ---------------- ellipse entries ----------------
 
