@@ -106,7 +106,12 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
     let centre_line = |b: &mut Builder, p: &cadcraft_doc::LwPolyline| {
         let pl = Polyline { vertices: p.vertices.clone(), closed: p.closed };
         if p.plinegen && p.closed {
-            let anchor = pl.segments().first().map_or(0.0, |s| s.len());
+            // The second vertex, measured along the run as it is drawn (an arc by its chords).
+            let mut first = Vec::new();
+            if let Some(s) = pl.segments().first() {
+                s.tessellate(tol, &mut first);
+            }
+            let anchor = first.windows(2).map(|w| if let [a, b] = w { a.dist(*b) } else { 0.0 }).sum();
             stroke_as(b, &pl.tessellate(tol), Layout::Closed { anchor });
         } else if p.plinegen || lt.is_none() {
             stroke(b, &pl.tessellate(tol));

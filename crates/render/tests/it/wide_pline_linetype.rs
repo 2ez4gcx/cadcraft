@@ -68,6 +68,27 @@ fn a_closed_plinegen_band_is_stretched_around_as_a_thin_one_is() {
 }
 
 #[test]
+fn a_closed_plinegen_run_is_anchored_at_its_second_vertex_after_an_arc() {
+    // The first segment is an arc (bulge 0.5): the pattern is measured along the run as drawn, so
+    // a dash starts right at the second vertex, without width and with fill off alike.
+    for width in [0.0, 0.2] {
+        let mut d = Drawing::new_imperial();
+        d.linetypes.extend(library::standard_linetypes().into_iter().filter(|l| l.name == "DASHED"));
+        d.header.set_i64("FILLMODE", 0);
+        let mut vertices: Vec<PolyVertex> =
+            [(0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)].map(|(x, y)| PolyVertex::new(Vec2::new(x, y))).to_vec();
+        if let Some(v) = vertices.first_mut() {
+            v.bulge = 0.5;
+        }
+        let p = LwPolyline { vertices, closed: true, const_width: width, elevation: 0.0, plinegen: true };
+        d.add(&Space::Model, Common { linetype: "DASHED".into(), ..Default::default() }, EntityKind::LwPolyline(p)).unwrap();
+        let l = build(&d, &Space::Model, &Options::default());
+        let starts: Vec<Vec2> = l.prims.iter().filter(|p| p.kind == Kind::Polyline).filter_map(|p| l.points(p).first().copied()).collect();
+        assert!(starts.iter().any(|q| q.dist(Vec2::new(10.0, 0.0)) < 1e-9), "{width}: {starts:?}");
+    }
+}
+
+#[test]
 fn plinegen_runs_the_pattern_along_the_whole_polyline() {
     // Two 0.6 segments: per segment each is shorter than the 0.75 pattern, so drawn continuous;
     // along the whole 1.2 the centred pattern gives 0.475 + 0.475.
