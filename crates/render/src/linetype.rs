@@ -212,15 +212,11 @@ pub fn apply_as(pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: f64, how: 
     }
 }
 
-/// The dashes of the pattern along an open run of length `len`, as (start, end) distances; a dot
-/// has start == end. Laid out like [`apply`]. `None` when the run is drawn continuous: shorter
-/// than one period, a scaled pattern shorter than `min_pattern`, or too many repeats.
-pub fn ranges(len: f64, lt: &Linetype, scale: f64, min_pattern: f64) -> Option<Vec<(f64, f64)>> {
-    ranges_as(len, lt, scale, min_pattern, Layout::Open)
-}
-
-/// [`ranges`] with the run laid out as `how` says.
-pub fn ranges_as(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Option<Vec<(f64, f64)>> {
+/// The dashes of the pattern along a run of length `len` laid out as `how` says, as (start, end)
+/// distances; a dot has start == end. Laid out like [`apply_as`]. `None` when the run is drawn
+/// continuous: shorter than one period, a scaled pattern shorter than `min_pattern`, or too many
+/// repeats.
+pub fn ranges(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Option<Vec<(f64, f64)>> {
     if len > 0.0 { scaled(lt, scale, min_pattern).and_then(|p| layout(len, &p, how)) } else { None }
 }
 
@@ -254,7 +250,7 @@ mod tests {
     #[test]
     fn an_all_gap_pattern_draws_nothing_without_spinning() {
         let lt = Linetype::simple("GAPS", "", &[-0.001, -0.002]);
-        assert_eq!(ranges(1.0, &lt, 1.0, 0.0), Some(Vec::new()));
+        assert_eq!(ranges(1.0, &lt, 1.0, 0.0, Layout::Open), Some(Vec::new()));
         assert!(apply(&[Vec2::ZERO, Vec2::new(1.0, 0.0)], &lt, 1.0, 0.0).is_empty());
     }
 
@@ -375,7 +371,7 @@ mod tests {
             assert_eq!(f, 1.0);
             // Every whole dash starts a gap (1) after a period (3) starts.
             let whole: Vec<f64> =
-                ranges(len, &lt, 1.0, 0.0).unwrap().into_iter().filter(|(a, b)| (b - a - 2.0).abs() < 1e-9).map(|(a, _)| a).collect();
+                ranges(len, &lt, 1.0, 0.0, Layout::Open).unwrap().into_iter().filter(|(a, b)| (b - a - 2.0).abs() < 1e-9).map(|(a, _)| a).collect();
             assert!(!whole.is_empty(), "{len}");
             for a in whole {
                 let k = (a - 1.0 - start) / 3.0;
@@ -409,6 +405,6 @@ mod tests {
     fn a_run_shorter_than_one_period_is_continuous() {
         let lt = Linetype::simple("DASHED", "", &[2.0, -1.0]);
         assert_eq!(apply(&[Vec2::ZERO, Vec2::new(2.99, 0.0)], &lt, 1.0, 0.0).len(), 1);
-        assert_eq!(ranges(2.99, &lt, 1.0, 0.0), None);
+        assert_eq!(ranges(2.99, &lt, 1.0, 0.0, Layout::Open), None);
     }
 }

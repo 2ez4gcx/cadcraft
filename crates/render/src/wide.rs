@@ -89,7 +89,7 @@ pub fn dashed(p: &LwPolyline, tol: f64, lt: &Linetype, scale: f64, min_pattern: 
     let mut centres = Vec::new();
     for run in &runs {
         let len = run.last().map(|x| x.s).unwrap_or(0.0);
-        let dashes = linetype::ranges_as(len, lt, scale, min_pattern, how).unwrap_or_else(|| vec![(0.0, len)]);
+        let dashes = linetype::ranges(len, lt, scale, min_pattern, how).unwrap_or_else(|| vec![(0.0, len)]);
         for (a, b) in dashes {
             if b - a <= 1e-12 {
                 if let Some(x) = at(run, a) {
