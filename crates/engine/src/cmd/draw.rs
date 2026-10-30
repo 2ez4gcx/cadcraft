@@ -103,6 +103,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .params("{center, inside, outside}")
             .interactive(|_| Ok(Box::new(DonutM::default()))),
         CommandSpec::new("solid", "2D Solid", run_solid)
+            .menu(&["Draw", "2D Solid"])
             .alias(&["so"])
             .params("{points: [[x,y],...]} (three or four for the first solid, two more for each next one, chained on its last two corners)")
             .interactive(|_| Ok(Box::new(SolidM::default()))),
