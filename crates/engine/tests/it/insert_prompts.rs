@@ -121,4 +121,11 @@ fn insert_options_match_autocad() {
         assert!(s.running.is_none(), "{name}: {}", s.prompt_text());
         assert_eq!(last_insert(&s), want, "{name}");
     }
+    // Basepoint is picked on the block dropped at the cursor: with the cursor at (100, 50)
+    // instead of the origin, B7's call inserts 100 and 50 further on.
+    let mut s = Session::new();
+    block(&mut s, "B7", [612345.678, 2398765.432], 1.0);
+    s.cursor = cadcraft_engine::geom::Vec2::new(100.0, 50.0);
+    s.cmdline("(command \"_.-INSERT\" \"B7\" \"_B\" '(612350.678 2398770.432) '(612365.678 2398775.432) 1 \"\" 0)").unwrap();
+    assert_eq!(last_insert(&s), (115.0, 55.0, 1.0, 1.0, 1.0, 0.0));
 }
