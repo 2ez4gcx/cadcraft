@@ -42,10 +42,10 @@ fn wide_polyline_dashes_are_filled_bands() {
 
 #[test]
 fn plinegen_runs_the_pattern_along_the_whole_polyline() {
-    // Two 0.6 segments: per segment each gets one 0.5 dash; along the whole 1.2 the pattern
-    // gives 0.5 + 0.45.
+    // Two 0.6 segments: per segment each is shorter than the 0.75 pattern, so drawn continuous;
+    // along the whole 1.2 the centred pattern gives 0.475 + 0.475.
     let per_segment = area(&tris(&drawing(&[0.0, 0.6, 1.2], "DASHED", false)));
     let whole = area(&tris(&drawing(&[0.0, 0.6, 1.2], "DASHED", true)));
-    assert!((per_segment - 0.2).abs() < 1e-9, "{per_segment}");
+    assert!((per_segment - 0.24).abs() < 1e-9, "{per_segment}");
     assert!((whole - 0.19).abs() < 1e-9, "{whole}");
 }
