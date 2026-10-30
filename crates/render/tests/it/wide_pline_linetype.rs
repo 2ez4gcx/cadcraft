@@ -89,6 +89,28 @@ fn a_closed_plinegen_run_is_anchored_at_its_second_vertex_after_an_arc() {
 }
 
 #[test]
+fn a_closed_plinegen_run_whose_first_two_vertices_coincide_is_anchored_at_them() {
+    // The zero-length first segment is left out of the drawn run, but the second vertex is still
+    // where the run starts: the 40-unit square is stretched to 53 DASHED periods from there, so
+    // dashes start at 0 and 40/53 (not 10 + k * 40/53, from the next vertex). Without width, with
+    // fill off, and with fill on (the band's centre line) alike.
+    for (width, fill) in [(0.0, 0), (0.2, 0), (0.2, 1)] {
+        let mut d = Drawing::new_imperial();
+        d.linetypes.extend(library::standard_linetypes().into_iter().filter(|l| l.name == "DASHED"));
+        d.header.set_i64("FILLMODE", fill);
+        let vertices: Vec<PolyVertex> =
+            [(0.0, 0.0), (0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)].map(|(x, y)| PolyVertex::new(Vec2::new(x, y))).to_vec();
+        let p = LwPolyline { vertices, closed: true, const_width: width, elevation: 0.0, plinegen: true };
+        d.add(&Space::Model, Common { linetype: "DASHED".into(), ..Default::default() }, EntityKind::LwPolyline(p)).unwrap();
+        let l = build(&d, &Space::Model, &Options { min_dash: 1e-6, ..Default::default() });
+        let starts: Vec<Vec2> = l.prims.iter().filter(|p| p.kind == Kind::Polyline).filter_map(|p| l.points(p).first().copied()).collect();
+        for x in [0.0, 40.0 / 53.0] {
+            assert!(starts.iter().any(|q| q.dist(Vec2::new(x, 0.0)) < 1e-9), "{width} {fill} {x}: {starts:?}");
+        }
+    }
+}
+
+#[test]
 fn plinegen_runs_the_pattern_along_the_whole_polyline() {
     // Two 0.6 segments: per segment each is shorter than the 0.75 pattern, so drawn continuous;
     // along the whole 1.2 the centred pattern gives 0.475 + 0.475.

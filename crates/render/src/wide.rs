@@ -66,6 +66,14 @@ fn edges(x: &Sample) -> (Vec2, Vec2) {
     (x.p + nrm, x.p - nrm)
 }
 
+/// How far along a closed PLINEGEN polyline, drawn from its first vertex, its second vertex lies
+/// (an arc by its chords at `tol`): where the pattern stretched around it is anchored, as AutoCAD
+/// lays it. 0 when the first two vertices coincide (`Polyline::segments` leaves that segment out).
+pub(crate) fn second_vertex_at(p: &LwPolyline, tol: f64) -> f64 {
+    let first = Polyline { vertices: p.vertices.iter().take(2).copied().collect(), closed: false };
+    first.tessellate(tol).windows(2).map(|w| if let [a, b] = w { a.dist(*b) } else { 0.0 }).sum()
+}
+
 /// Triangles for the dashes of a wide polyline drawn with `lt` at `scale`, a line across the band
 /// for each dot, and the centre line of each dash. With PLINEGEN the pattern runs along the whole
 /// polyline (stretched around a closed one from its second vertex, as a thin one is); otherwise
@@ -75,7 +83,7 @@ pub fn dashed(p: &LwPolyline, tol: f64, lt: &Linetype, scale: f64, min_pattern: 
     let mut how = Layout::Open;
     if p.plinegen && runs.len() > 1 {
         if p.closed {
-            how = Layout::Closed { anchor: runs.first().and_then(|r| r.last()).map_or(0.0, |x| x.s) };
+            how = Layout::Closed { anchor: second_vertex_at(p, tol) };
         }
         let mut whole: Vec<Sample> = Vec::new();
         for run in runs {
