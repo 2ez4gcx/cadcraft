@@ -100,6 +100,24 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
         None => b.polyline(ctx, rgb, lw, pts),
     };
     let stroke = |b: &mut Builder, pts: &[Vec2]| stroke_as(b, pts, Layout::Open);
+    // A polyline's centre line: with PLINEGEN the pattern runs along the whole of it (stretched
+    // around a closed one from its second vertex, as AutoCAD lays it); otherwise it restarts at
+    // every vertex.
+    let centre_line = |b: &mut Builder, p: &cadcraft_doc::LwPolyline| {
+        let pl = Polyline { vertices: p.vertices.clone(), closed: p.closed };
+        if p.plinegen && p.closed {
+            let anchor = pl.segments().first().map_or(0.0, |s| s.len());
+            stroke_as(b, &pl.tessellate(tol), Layout::Closed { anchor });
+        } else if p.plinegen || lt.is_none() {
+            stroke(b, &pl.tessellate(tol));
+        } else {
+            for s in pl.segments() {
+                let mut pts = Vec::new();
+                s.tessellate(tol, &mut pts);
+                stroke(b, &pts);
+            }
+        }
+    };
     match &e.kind {
         EntityKind::Text(t) => {
             if !b.opts.text {
@@ -158,26 +176,11 @@ fn entity_parts(b: &mut Builder, ctx: &Ctx, e: &Entity) {
                     }
                 }
             } else {
-                let pl = Polyline { vertices: p.vertices.clone(), closed: p.closed };
-                stroke(b, &pl.tessellate(tol));
+                // Fill off: the centre line, dashed as a polyline without width is.
+                centre_line(b, p);
             }
         }
-        EntityKind::LwPolyline(p) => {
-            let pl = Polyline { vertices: p.vertices.clone(), closed: p.closed };
-            if p.plinegen && p.closed {
-                // A closed run with its period anchored at the second vertex, as AutoCAD lays it.
-                let anchor = pl.segments().first().map_or(0.0, |s| s.len());
-                stroke_as(b, &pl.tessellate(tol), Layout::Closed { anchor });
-            } else if p.plinegen || lt.is_none() {
-                stroke(b, &pl.tessellate(tol));
-            } else {
-                for s in pl.segments() {
-                    let mut pts = Vec::new();
-                    s.tessellate(tol, &mut pts);
-                    stroke(b, &pts);
-                }
-            }
-        }
+        EntityKind::LwPolyline(p) => centre_line(b, p),
         EntityKind::Solid(s) | EntityKind::Trace(s) => {
             let c = &s.corners;
             let q = [c[0].xy(), c[1].xy(), c[3].xy(), c[2].xy()];

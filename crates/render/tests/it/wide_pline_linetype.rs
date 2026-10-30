@@ -58,6 +58,13 @@ fn a_closed_plinegen_band_is_stretched_around_as_a_thin_one_is() {
     let t = tris(&d);
     let on_first_side = |x: f64| t.iter().any(|q| (q.x - x).abs() < 1e-9 && q.y.abs() <= 0.1 + 1e-9);
     assert!(on_first_side(0.75) && on_first_side(1.25) && !on_first_side(1.0), "{t:?}");
+
+    // With fill off only the centre line is drawn, laid out the same way.
+    d.header.set_i64("FILLMODE", 0);
+    let l = build(&d, &Space::Model, &Options::default());
+    let starts: Vec<Vec2> = l.prims.iter().filter(|p| p.kind == Kind::Polyline).filter_map(|p| l.points(p).first().copied()).collect();
+    let starts_at = |x: f64| starts.iter().any(|q| (q.x - x).abs() < 1e-9 && q.y.abs() < 1e-9);
+    assert!(starts_at(0.75) && !starts_at(0.5), "{starts:?}");
 }
 
 #[test]
