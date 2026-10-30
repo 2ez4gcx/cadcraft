@@ -101,17 +101,14 @@ fn extents_count_layers_turned_off_as_autocad() {
         d.layers.push(l);
     }
     let attrib = |tag: &str, at: (f64, f64), layer: Option<&str>| {
-        let mut a = match plain_attdef(tag) {
-            EntityKind::AttDef(a) => a,
-            _ => unreachable!(),
-        };
+        let mut a = plain_attrib(tag);
         a.text.insert = Vec3::new(at.0, at.1, 0.0);
         a.props.layer = layer.map(str::to_string);
         a
     };
     let mut blk = Block::new("BA");
     blk.entities.push(on_layer("0", line((0.0, 0.0), (1.0, 1.0)), 1));
-    blk.entities.push(on_layer("AFRZ", plain_attdef("DEF"), 2));
+    blk.entities.push(on_layer("AFRZ", EntityKind::AttDef(plain_attrib("DEF")), 2));
     d.blocks.insert("BA".into(), std::sync::Arc::new(blk));
     let ins = match plain_insert("BA") {
         EntityKind::Insert(i) => {
@@ -388,9 +385,9 @@ fn plain_insert(block: &str) -> EntityKind {
     })
 }
 
-/// An attribute definition `tag` at the origin, one unit high, reading "x".
-fn plain_attdef(tag: &str) -> EntityKind {
-    EntityKind::AttDef(Attrib {
+/// An attribute (or its definition) `tag` at the origin, one unit high, reading "x".
+fn plain_attrib(tag: &str) -> Attrib {
+    Attrib {
         tag: tag.into(),
         text: Text {
             insert: Vec3::ZERO,
@@ -410,7 +407,7 @@ fn plain_attdef(tag: &str) -> EntityKind {
         props: Default::default(),
         multiline: None,
         modes: Default::default(),
-    })
+    }
 }
 
 fn on_layer(layer: &str, kind: EntityKind, h: u64) -> Entity {
