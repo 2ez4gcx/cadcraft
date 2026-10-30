@@ -15,6 +15,8 @@
 //!   found ("1 was on a locked layer.", "2 were on a locked layer."); with none left, Enter ends
 //!   the command.
 
+use std::collections::HashSet;
+
 use cadcraft_color::Color;
 use cadcraft_doc::{Entity, Handle, Lineweight};
 use serde_json::{Value, json};
@@ -156,7 +158,7 @@ impl ChpropM {
 }
 
 /// The objects among `hs` on locked layers.
-fn locked(s: &Session, hs: &[Handle]) -> Vec<Handle> {
+fn locked(s: &Session, hs: &[Handle]) -> HashSet<Handle> {
     hs.iter().copied().filter(|h| is_locked(s, *h)).collect()
 }
 
@@ -174,18 +176,25 @@ pub(super) fn run_chprop(s: &mut Session, p: &Value) -> Result<Value> {
     let hs = targets(s, p)?;
     let locked = locked(s, &hs);
     if locked.is_empty() {
-        return super::run_set(s, p);
+        return super::run_set(s, p).map(|r| with_locked(r, 0));
     }
     let free: Vec<Handle> = hs.into_iter().filter(|h| !locked.contains(h)).collect();
-    let mut r = if free.is_empty() {
+    let r = if free.is_empty() {
         json!({ "changed": 0 })
     } else {
         let mut q = p.as_object().cloned().unwrap_or_default();
         q.insert("handles".into(), json!(free.iter().map(|h| h.hex()).collect::<Vec<_>>()));
         super::run_set(s, &Value::Object(q))?
     };
-    r["locked"] = json!(locked.len());
-    Ok(r)
+    Ok(with_locked(r, locked.len()))
+}
+
+/// `r` with how many objects were left out on locked layers.
+fn with_locked(mut r: Value, n: usize) -> Value {
+    if let Some(o) = r.as_object_mut() {
+        o.insert("locked".into(), json!(n));
+    }
+    r
 }
 
 /// A colour typed at CHPROP: 1–255, a name, BYLAYER or BYBLOCK (not 0 or 256, which COLOR takes).
