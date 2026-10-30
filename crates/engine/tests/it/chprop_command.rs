@@ -2,8 +2,8 @@
 //! with `entget`).
 
 use cadcraft_engine::Session;
-use cadcraft_engine::doc::Lineweight;
 use cadcraft_engine::doc::color::{Color, Rgb};
+use cadcraft_engine::doc::{Lineweight, Transparency};
 use serde_json::json;
 
 /// A session with line A (0,0)-(50,0) on layer 0 and line B (0,20)-(50,30) on layer L1, as `a` and
@@ -55,6 +55,10 @@ fn chprop_sets_each_property_as_autocad() {
     assert!(s.log.iter().any(|l| l == "Lineweight rounded to nearest valid value of 0.35 mm"), "{:?}", s.log);
     let (_, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_T\" 5.0 \"\")");
     assert_eq!(a.thickness, 5.0);
+    let (_, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_TR\" 50 \"\")");
+    assert_eq!(a.transparency, Transparency::Percent(50));
+    let (_, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_TR\" \"_BYBLOCK\" \"\")");
+    assert_eq!(a.transparency, Transparency::ByBlock);
     // Several objects and several properties in one go.
     let (_, [a, b]) = run("(command \"_.CHPROP\" a b \"\" \"_C\" 3 \"_LA\" \"L1\" \"_LW\" 0.5 \"\")");
     for c in [a, b] {
@@ -76,6 +80,12 @@ fn chprop_refuses_what_autocad_refuses() {
         assert_eq!(a.color, Color::ByLayer, "{n}");
         assert!(s.log.iter().any(|l| l == "Invalid color number."), "{n}: {:?}", s.log);
     }
+    let (s, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_C\" \"_T\" \"300,0,0\" \"\")");
+    assert_eq!(a.color, Color::ByLayer);
+    assert!(s.log.iter().any(|l| l == "Requires three integers from 0 to 255, separated by commas."), "{:?}", s.log);
+    let (s, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_TR\" 95 \"\")");
+    assert_eq!(a.transparency, Transparency::ByLayer);
+    assert!(s.log.iter().any(|l| l == "Requires ByLayer, ByBlock or an integer from 0 to 90."), "{:?}", s.log);
     // `L` is LAyer, LType, ltScale or LWeight: none of them.
     let (s, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_L\")");
     assert_eq!(a.layer, "0");
