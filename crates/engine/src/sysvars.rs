@@ -397,9 +397,10 @@ pub fn set(s: &mut Session, name: &str, v: &Value) -> Result<()> {
                     return Err(bad());
                 }
                 // A real style field (DIMJOGANG, DIMSCALE...) is a real variable, even set to a
-                // whole number first, so a later fraction still fits.
-                if serde_json::to_value(&st).ok().and_then(|j| j.get(*field).cloned()).is_some_and(|f| f.is_f64()) {
-                    d.header.set_f64(&n, as_f64(v).filter(|f| f.is_finite()).ok_or_else(bad)?);
+                // whole number first, so a later fraction still fits. It takes the value the style
+                // took.
+                if let Some(f) = serde_json::to_value(&st).ok().and_then(|j| j.get(*field).filter(|f| f.is_f64()).and_then(|f| f.as_f64())) {
+                    d.header.set_f64(&n, f);
                     return Ok(());
                 }
             }

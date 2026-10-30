@@ -569,6 +569,9 @@ fn getvar_and_setvar_take_angle_variables_in_radians() {
     s.cmdline("SETVAR DIMJOGANG 45").unwrap();
     ok(&mut s, "(setvar \"DIMJOGANG\" 0.5)");
     assert!((degrees(&s, "DIMJOGANG") - 0.5_f64.to_degrees()).abs() < 1e-9, "{}", degrees(&s, "DIMJOGANG"));
+    // It takes the value the dimension style takes: `true` is a DIMSCALE of 1.
+    crate::sysvars::set(&mut s, "DIMSCALE", &serde_json::json!(true)).unwrap();
+    assert_eq!(crate::sysvars::get(&s, "DIMSCALE").and_then(|v| v.as_f64()), Some(1.0));
     // Other variables are as they were.
     assert_eq!(ok(&mut s, "(getvar \"ANGDIR\")"), "0");
 }
