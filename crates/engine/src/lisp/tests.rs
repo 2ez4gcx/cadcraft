@@ -646,6 +646,29 @@ fn command_names_objects_at_prompts_picking_one() {
 }
 
 #[test]
+fn a_named_object_holds_for_its_own_input_in_its_own_space() {
+    use cadcraft_doc::Space;
+    let mut s = session();
+    ok(&mut s, "(setq a (progn (entmake '((0 . \"LINE\") (10 0.0 0.0 0.0) (11 10.0 0.0 0.0))) (entlast)))");
+    // BREAK takes A at (5,3), off the line; a later pick there finds nothing.
+    ok(&mut s, "(command \"_.BREAK\" (list a '(5.0 3.0)))");
+    assert!(s.prompt_text().contains("Specify second break point"), "{}", s.prompt_text());
+    let model = s.space();
+    assert_eq!(s.pick_object(&model, cadcraft_geom::Vec2::new(5.0, 3.0), 0.5).unwrap(), None);
+    s.cancel();
+    // A paper-space copy of A named in model space picks nothing, not A under its start.
+    let p = {
+        let d = s.doc_mut().unwrap();
+        let e = d.model.iter().next().unwrap();
+        let (common, kind) = (e.common.clone(), e.kind.clone());
+        d.add(&Space::Paper("Layout1".into()), common, kind).unwrap()
+    };
+    ok(&mut s, &format!("(command \"_.BREAK\" (handent \"{}\"))", p.hex()));
+    assert!(s.prompt_text().contains("Select object"), "{}", s.prompt_text());
+    s.cancel();
+}
+
+#[test]
 fn appload_reads_a_lsp_path_and_reports_its_commands() {
     let dir = std::env::temp_dir().join(format!("cadcraft-appload-lisp-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
