@@ -1245,6 +1245,31 @@ fn rectang_names_the_modes_it_carries_over() {
     s.cmdline("rectang _E 7.5 _T 2.25 0,0 _R _P 0,0 10,6 10,20").unwrap();
     s.start("rectang").unwrap();
     assert_eq!(modes(&s), ["Current rectangle modes:  Elevation=7.5000  Thickness=2.2500  Rotation=30.96"]);
+    s.cancel();
+    // With ANGBASE 90 and ANGDIR 1, AutoCAD 2024 turns a rectangle given Rotation 30 clockwise
+    // by 30° from +X (ANGBASE aside), and shows that rotation from ANGBASE: "Rotation=120.00",
+    // and <120.00> as the next rotation default.
+    let mut s = Session::new();
+    s.cmdline("setvar angbase 90").unwrap();
+    s.cmdline("setvar angdir 1").unwrap();
+    s.cmdline("rectang 50,0 _R 30 60,5").unwrap();
+    let e = s.doc().unwrap().model.last().unwrap().clone();
+    let EntityKind::LwPolyline(p) = &e.kind else { panic!("{:?}", e.kind) };
+    let edge = p.vertices[1].p - p.vertices[0].p;
+    assert!((edge.y.atan2(edge.x) + 30f64.to_radians()).abs() < 1e-9, "{p:?}");
+    s.start("rectang").unwrap();
+    assert_eq!(modes(&s), ["Current rectangle modes:  Rotation=120.00"]);
+    s.cmdline("50,0").unwrap();
+    s.cmdline("_R").unwrap();
+    assert!(s.prompt_text().contains("<120.00>"), "{}", s.prompt_text());
+    s.cancel();
+    // In degrees/minutes/seconds: "Rotation=30d30'".
+    let mut s = Session::new();
+    s.cmdline("setvar aunits 1").unwrap();
+    s.cmdline("rectang 50,0 _R 30.5 60,5").unwrap();
+    s.start("rectang").unwrap();
+    assert_eq!(modes(&s), ["Current rectangle modes:  Rotation=30d30'"]);
+    s.cancel();
 }
 
 /// Area allows for cut corners only while they fit: a fillet too large for the resulting sides

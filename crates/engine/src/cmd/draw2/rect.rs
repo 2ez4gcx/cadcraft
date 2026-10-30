@@ -7,6 +7,15 @@ use super::{
 // RECTANG with Area / Dimensions / Rotation / Width / Elevation / Thickness
 // =====================================================================================
 
+/// A rectangle's rotation (radians counterclockwise from +X) as AutoCAD 2024 shows it in RECTANG's
+/// modes and rotation prompt: from ANGBASE in the ANGDIR sense, in the drawing's angle units to
+/// two places ("Rotation=120.00" for 30 typed with ANGBASE 90 and ANGDIR 1, "30d30'" in
+/// degrees/minutes/seconds).
+fn shown_rotation(s: &Session, rotation: f64) -> String {
+    let au = s.angle_settings();
+    crate::units::format_angle(au.shown(rotation), au.aunits, 2)
+}
+
 /// RECTANG's corner options, remembered between invocations as AutoCAD remembers them
 /// ("Current rectangle modes:  Fillet=2.0000", "Elevation=7.5000  Thickness=2.2500  Rotation=30.96").
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -277,7 +286,7 @@ impl Interactive for RectM2 {
         }
         let rotation = m.rotation.to_degrees().rem_euclid(360.0);
         if rotation > 1e-9 && rotation < 360.0 - 1e-9 {
-            on.push(format!("Rotation={rotation:.2}"));
+            on.push(format!("Rotation={}", shown_rotation(s, m.rotation)));
         }
         if !on.is_empty() {
             s.echo(format!("Current rectangle modes:  {}", on.join("  ")));
@@ -304,7 +313,7 @@ impl Interactive for RectM2 {
                 RAsk::DimW => num("Specify width for rectangles", self.dims.map(|d| d.1).unwrap_or(10.0)),
                 RAsk::Rotation => Prompt::new("Specify rotation angle or", Accept::POINT_OR_NUMBER)
                     .kw(&["Pick points"])
-                    .default(format!("{:.0}", self.rotation.to_degrees()))
+                    .default(shown_rotation(_s, self.rotation))
                     .base_opt(self.first),
                 RAsk::RotPick1 => Prompt::new("Specify first point", Accept::POINT),
                 RAsk::RotPick2(b) => Prompt::new("Specify second point", Accept::POINT).base(b),
@@ -382,7 +391,8 @@ impl Interactive for RectM2 {
                 RAsk::Rotation => match i {
                     Input::Keyword(_) => self.asking = Some(RAsk::RotPick1),
                     Input::Point(p) => self.rotation = self.first.map(|f| f.angle_to(p)).unwrap_or(0.0),
-                    Input::Text(t) => self.rotation = s.angle_settings().direction(&t).ok_or_else(|| other("Requires a valid angle."))?,
+                    // An amount turned in the ANGDIR sense from +X, ANGBASE aside, as AutoCAD takes it.
+                    Input::Text(t) => self.rotation = s.angle_settings().rotation(&t).ok_or_else(|| other("Requires a valid angle."))?,
                     _ => {}
                 },
                 RAsk::RotPick1 => {
