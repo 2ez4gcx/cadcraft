@@ -819,6 +819,8 @@ impl Interactive for InsertM {
                 };
                 self.scale = Some(Vec2::new(f, f));
                 self.z_scale = Some(f.abs());
+                // An axis preset after it changes that axis alone (Scale -3 then X 2: 2/-3/3).
+                self.axes = [Some(f), Some(f), Some(f.abs())];
                 // Exploded insertion asks its one scale factor after the insertion point.
                 if self.at.is_some() {
                     return self.advance(s);
