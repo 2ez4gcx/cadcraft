@@ -579,6 +579,19 @@ fn entlast_and_entnext_follow_edits_within_one_routine() {
                  (progn (entdel c) (equal (entlast) b))))",
     );
     assert_eq!(got, "(nil T T \"CIRCLE\" T)");
+    // Walking every object while editing it with entmod and entupd, then deleting the last one.
+    let got = ok(
+        &mut s,
+        "(progn
+           (setq e (entnext) n 0)
+           (while e
+             (entmod (subst '(8 . \"L1\") (assoc 8 (entget e)) (entget e)))
+             (entupd e)
+             (setq n (1+ n) e (entnext e)))
+           (entdel (entlast))
+           (list n (cdr (assoc 8 (entget (entlast)))) (equal (entlast) a) (entnext a)))",
+    );
+    assert_eq!(got, "(2 \"L1\" T nil)");
 }
 
 #[test]
