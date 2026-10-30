@@ -216,7 +216,12 @@ pub fn apply_as(pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: f64, how: 
 /// has start == end. Laid out like [`apply`]. `None` when the run is drawn continuous: shorter
 /// than one period, a scaled pattern shorter than `min_pattern`, or too many repeats.
 pub fn ranges(len: f64, lt: &Linetype, scale: f64, min_pattern: f64) -> Option<Vec<(f64, f64)>> {
-    if len > 0.0 { scaled(lt, scale, min_pattern).and_then(|p| layout(len, &p, Layout::Open)) } else { None }
+    ranges_as(len, lt, scale, min_pattern, Layout::Open)
+}
+
+/// [`ranges`] with the run laid out as `how` says.
+pub fn ranges_as(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Option<Vec<(f64, f64)>> {
+    if len > 0.0 { scaled(lt, scale, min_pattern).and_then(|p| layout(len, &p, how)) } else { None }
 }
 
 /// Where the pattern starts on a run `len` long laid out as `how`, and how much it is stretched:
@@ -227,7 +232,13 @@ pub fn phase(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout)
     layout(len, &pattern, how)?;
     let first = pattern.first().copied().unwrap_or(0.0);
     Some(match how {
-        Layout::Open => (-((len / period + 1e-9).floor() * period + first - len) / 2.0, 1.0),
+        Layout::Open => {
+            let n = (len / period + 1e-9).floor();
+            let x = (len - n * period + first) / 2.0;
+            // A gap-first pattern with room for a piece of dash at the start ([`gap_first`]) has
+            // its second element at `x`, a gap after its period starts.
+            (if first < 0.0 && x >= 0.0 { x + first } else { x - first }, 1.0)
+        }
         Layout::Closed { anchor } => {
             let f = len / ((len / period).round().max(1.0) * period);
             (if anchor.is_finite() { anchor.rem_euclid(period * f) } else { 0.0 }, f)
@@ -351,6 +362,25 @@ mod tests {
         for (pattern, len, want) in table {
             let got = drawn(len, pattern, Layout::Open);
             assert!(near(&got, want, 0.006), "{pattern:?} on {len}: {got:?}");
+        }
+    }
+
+    /// Text in a linetype follows [`phase`]: it must say where the periods of a gap-first pattern
+    /// start on each side of the room left for a piece of dash at the start.
+    #[test]
+    fn phase_follows_the_dashes_of_a_gap_first_pattern() {
+        let lt = Linetype::simple("GF", "", &[-1.0, 2.0]);
+        for len in [6.5, 7.0, 7.5, 8.9, 12.5] {
+            let (start, f) = phase(len, &lt, 1.0, 0.0, Layout::Open).unwrap();
+            assert_eq!(f, 1.0);
+            // Every whole dash starts a gap (1) after a period (3) starts.
+            let whole: Vec<f64> =
+                ranges(len, &lt, 1.0, 0.0).unwrap().into_iter().filter(|(a, b)| (b - a - 2.0).abs() < 1e-9).map(|(a, _)| a).collect();
+            assert!(!whole.is_empty(), "{len}");
+            for a in whole {
+                let k = (a - 1.0 - start) / 3.0;
+                assert!((k - k.round()).abs() < 1e-9, "{len}: a dash at {a}, periods from {start}");
+            }
         }
     }
 

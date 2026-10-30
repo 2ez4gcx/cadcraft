@@ -41,6 +41,26 @@ fn wide_polyline_dashes_are_filled_bands() {
 }
 
 #[test]
+fn a_closed_plinegen_band_is_stretched_around_as_a_thin_one_is() {
+    // A closed 10.5 square is 42 around: 56 DASHED periods laid from its second vertex, 10.5 along
+    // (a whole number of periods), so the first side has dashes at 0-0.5, 0.75-1.25…; laid as an
+    // open run they would be centred, at 0-0.25, 0.5-1.0….
+    let mut d = Drawing::new_imperial();
+    d.linetypes.extend(library::standard_linetypes().into_iter().filter(|l| l.name == "DASHED"));
+    let p = LwPolyline {
+        vertices: [(0.0, 0.0), (10.5, 0.0), (10.5, 10.5), (0.0, 10.5)].map(|(x, y)| PolyVertex::new(Vec2::new(x, y))).to_vec(),
+        closed: true,
+        const_width: 0.2,
+        elevation: 0.0,
+        plinegen: true,
+    };
+    d.add(&Space::Model, Common { linetype: "DASHED".into(), ..Default::default() }, EntityKind::LwPolyline(p)).unwrap();
+    let t = tris(&d);
+    let on_first_side = |x: f64| t.iter().any(|q| (q.x - x).abs() < 1e-9 && q.y.abs() <= 0.1 + 1e-9);
+    assert!(on_first_side(0.75) && on_first_side(1.25) && !on_first_side(1.0), "{t:?}");
+}
+
+#[test]
 fn plinegen_runs_the_pattern_along_the_whole_polyline() {
     // Two 0.6 segments: per segment each is shorter than the 0.75 pattern, so drawn continuous;
     // along the whole 1.2 the centred pattern gives 0.475 + 0.475.
