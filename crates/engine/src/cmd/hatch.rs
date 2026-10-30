@@ -714,8 +714,9 @@ impl Interactive for HatchM {
                 }
                 Input::Keyword(k) if a == HatchAsk::Pattern && k == "Solid" => self.answer(s, a, "SOLID")?,
                 Input::Text(t) | Input::Keyword(t) => self.answer(s, a, t)?,
-                // Enter keeps the current value.
-                _ => true,
+                // Enter keeps the current value; a point or a pick answers none of these prompts.
+                Input::Enter => true,
+                _ => false,
             };
             self.asking = self.after(a, taken);
             self.properties &= self.asking.is_some();
@@ -919,6 +920,17 @@ mod tests {
                 h.angle.to_degrees()
             );
         }
+        // An object (an entity name from LISP) answers none of these prompts: each is asked again.
+        let mut s = Session::new();
+        s.execute("rectang", &json!({ "p1": [0, 0], "p2": [40, 30] })).unwrap();
+        let h = s.doc().unwrap().model.handles()[0];
+        s.cmdline("(command \"_.-HATCH\" \"_P\")").unwrap();
+        s.input(crate::Input::Pick(vec![h])).unwrap();
+        assert!(s.prompt_text().contains("Enter a pattern name"), "{}", s.prompt_text());
+        s.cmdline("ANSI31").unwrap();
+        s.input(crate::Input::Pick(vec![h])).unwrap();
+        assert!(s.prompt_text().contains("Specify a scale for the hatch pattern"), "{}", s.prompt_text());
+        s.cancel();
     }
 
     #[test]
