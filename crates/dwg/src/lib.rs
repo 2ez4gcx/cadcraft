@@ -107,6 +107,7 @@ mod native {
         current_style_names(&mut doc);
         table_merges(&mut doc);
         table_style_rows(&mut doc, false);
+        keep_sort_handles(&mut doc);
         let orphans = drop_orphaned_dgn_components(&mut doc);
         if orphans > 0 {
             let (s, were) = if orphans == 1 { ("", "was") } else { ("s", "were") };
@@ -262,6 +263,27 @@ mod native {
                     }
                 }
             }
+        }
+    }
+
+    /// Draw-order tables (SORTENTSTABLE) keep the sort handles the file gave them. acadrust's DXF
+    /// writer renumbers them past every entity handle, but an entity left out of a table sorts by
+    /// its own handle, so after renumbering it would draw below every listed entity (#2410). Giving
+    /// the table its codes verbatim makes the writer emit them unchanged.
+    fn keep_sort_handles(doc: &mut acadrust::CadDocument) {
+        use acadrust::objects::ObjectType;
+        let version = doc.version;
+        for o in doc.objects.values_mut() {
+            let ObjectType::SortEntitiesTable(t) = o else { continue };
+            let hex = |h: acadrust::types::Handle| format!("{:X}", h.value());
+            let mut codes =
+                vec![(5, hex(t.handle)), (330, hex(t.owner_handle)), (100, "AcDbSortentsTable".to_string()), (330, hex(t.block_owner_handle))];
+            for e in t.entries() {
+                codes.push((331, hex(e.entity_handle)));
+                codes.push((5, hex(e.sort_handle)));
+            }
+            t.raw_dxf_codes = Some(codes);
+            t.raw_dxf_version = Some(version);
         }
     }
 
@@ -512,6 +534,17 @@ mod native {
         }
     }
 
+    /// The current layer (`$CLAYER`) by its name, the same way as [`current_dimstyle`]: a DWG
+    /// stores the handle of the layer, and the one read with the DXF needn't be the layer's in
+    /// the document, so the drawing reopened with layer "0" current (#2252).
+    fn current_layer(doc: &mut acadrust::CadDocument) {
+        let name = doc.header.current_layer_name.clone();
+        // The table's own lookup compares Unicode case-insensitively ("Survey_Ä" = "Survey_ä").
+        if let Some(layer) = doc.layers.get(&name) {
+            doc.header.current_layer_handle = layer.handle;
+        }
+    }
+
     fn convert(dxf: &[u8], version: Option<acadrust::DxfVersion>) -> Result<Vec<u8>, String> {
         // Reject a pathologically large DXF before handing it to the third-party decoder, which
         // allocates tables and section buffers from the input's declared sizes and cannot be
@@ -543,6 +576,7 @@ mod native {
         current_dimstyle(&mut doc);
         add_variable_dictionary(&mut doc);
         current_text_style(&mut doc);
+        current_layer(&mut doc);
         std::panic::catch_unwind(AssertUnwindSafe(|| acadrust::DwgWriter::write_to_vec(&doc)))
             .map_err(|_| "the DWG writer failed on this drawing".to_string())?
             .map_err(|e| format!("DWG write: {e}"))

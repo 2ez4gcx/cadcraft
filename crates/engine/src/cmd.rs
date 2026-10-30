@@ -34,6 +34,7 @@ mod props;
 pub use draw2::RectangModes;
 pub use draw2::breakline::BreaklineOptions;
 pub use props::MatchProps;
+pub(crate) use props::UNIT_RANGES;
 pub(crate) use props::{current_color_value, set_current_color_value};
 mod qselect;
 mod selecttools;

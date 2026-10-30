@@ -1,7 +1,7 @@
 use super::common::T;
 use super::entities::{entity_extras, entity_plot_style, entity_with_table_budget, insert_attribs, polyline_entity};
 use super::objects::{MAX_OBJECTS, Objects, page_setup};
-use super::*;
+use super::{Block, BlockDef, Drawing, Entity, EntityKind, Handle, HashMap, Layout, LayoutDef, Rx, Tag, records};
 
 pub(super) fn parse_entities(
     recs: &[(String, Vec<Tag>)],
@@ -311,7 +311,11 @@ pub(super) fn apply_sortents(
     for (owner, map) in tables {
         let Some(name) = brs.get(owner) else { continue };
         let up = name.to_ascii_uppercase();
-        let key = |e: &Entity| map.get(&e.handle).copied().unwrap_or(e.handle.0);
+        // A sort handle of 0 draws last (ezdxf `reorder`, which notes AutoCAD defines it, undocumented).
+        let key = |e: &Entity| {
+            let k = map.get(&e.handle).copied().unwrap_or(e.handle.0);
+            (k == 0, k)
+        };
         if up == "*MODEL_SPACE" {
             d.model.sort_by_key(key);
         } else if up.starts_with("*PAPER_SPACE") {
