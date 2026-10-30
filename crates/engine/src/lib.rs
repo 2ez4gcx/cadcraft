@@ -142,6 +142,10 @@ pub struct Session {
     lisp_last: Option<std::result::Result<lisp::value::Value, String>>,
     /// What the last HATCHPICK kept (the Hatch and Gradient dialog's picks).
     pub hatch_picks: Option<cmd::hatch::HatchPicks>,
+    /// Objects named with a point for prompts picking one object ([`Session::input_object`]): a
+    /// pick at exactly that point picks that object ([`Session::pick_object`]). Cleared when a
+    /// command starts.
+    pick_hints: Vec<(Handle, Vec2)>,
 }
 
 impl Default for Session {
@@ -192,6 +196,7 @@ impl Session {
             lisp: lisp::LispState::default(),
             lisp_last: None,
             hatch_picks: None,
+            pick_hints: Vec::new(),
         }
     }
 

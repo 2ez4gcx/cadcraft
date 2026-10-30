@@ -1,4 +1,4 @@
-use super::{Bounds2, Handle, Input, PendingWindow, Result, Session, Vec2, cmd, select};
+use super::{Bounds2, Drawing, Entity, Handle, Input, PendingWindow, Result, Session, Space, Vec2, cmd, select};
 
 impl Session {
     // ---------------- picking without a command ----------------
@@ -125,4 +125,50 @@ impl Session {
             st.previous_selection = sel.to_vec();
         }
     }
+
+    // ---------------- one object by name ----------------
+
+    /// Give the running command an object by name, as AutoLISP's `command` does with an entity
+    /// name or an `entsel` list (name and point). A prompt picking one object with a point
+    /// (BREAK's "Select object", MEASURE's "Select object to measure"…) takes the point, and a
+    /// pick there finds that object ([`Session::pick_object`]) wherever it lies. A bare name
+    /// stands at the object's DXF group 10 point (a line's start, a circle's centre, a
+    /// polyline's first vertex), the point AutoCAD picks it at. Other prompts take the object as
+    /// a pick.
+    pub fn input_object(&mut self, h: Handle, at: Option<Vec2>) -> Result<()> {
+        let one = self.current_prompt().is_some_and(|p| p.accept.point && !p.accept.select && p.picks_objects());
+        let p = if one { at.or_else(|| self.doc().ok().and_then(|d| group_10(d, d.entity(h)?))) } else { None };
+        let Some(p) = p.filter(|p| p.is_finite()) else { return self.input(Input::Pick(vec![h])) };
+        if self.pick_hints.len() >= MAX_PICK_HINTS {
+            self.pick_hints.remove(0);
+        }
+        self.pick_hints.push((h, p));
+        self.input(Input::Point(p))
+    }
+
+    /// The object a prompt picking one object finds at `p` in `space`: the one named for that
+    /// point ([`Session::input_object`]), else the object under `p` within `aperture`.
+    pub fn pick_object(&self, space: &Space, p: Vec2, aperture: f64) -> Result<Option<Handle>> {
+        let d = self.doc()?;
+        let named = self.pick_hints.iter().rev().find(|(_, q)| *q == p).map(|(h, _)| *h);
+        if let Some(h) = named
+            && d.space_of(h).as_ref() == Some(space)
+        {
+            return Ok(Some(h));
+        }
+        Ok(select::pick(d, space, p, aperture))
+    }
+}
+
+/// Most objects named with a point that one command keeps ([`Session::input_object`]).
+const MAX_PICK_HINTS: usize = 256;
+
+/// An object's DXF group 10 point: the first point of its entity list, or its first grip where
+/// entity lists are not built in.
+fn group_10(d: &Drawing, e: &Entity) -> Option<Vec2> {
+    let Some(codec) = cmd::file::entity_codec() else { return e.kind.grips().first().copied() };
+    let (_, tags) = (codec.groups)(d, e);
+    let i = tags.iter().position(|t| t.code == 10)?;
+    let y = tags.get(i + 1).filter(|t| t.code == 20)?;
+    Some(Vec2::new(tags[i].value.as_f64(), y.value.as_f64()))
 }
