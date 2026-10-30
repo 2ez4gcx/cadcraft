@@ -32,11 +32,18 @@ pub enum Layout {
 /// Most periods a run is dashed over; a longer run is drawn continuous.
 const MAX_PERIODS: f64 = 50_000.0;
 
+/// Most pattern elements a run is laid out over (a long pattern repeated many times); beyond
+/// that it is drawn continuous too.
+const MAX_ELEMENTS: f64 = 2_000_000.0;
+
 /// The drawn stretches of a run `len` long, as (start, end) along it (a dot: start == end), in
 /// order; `None` when it is drawn continuous (shorter than one period). `pattern` is scaled.
 fn layout(len: f64, pattern: &[f64], how: Layout) -> Option<Vec<(f64, f64)>> {
     let period: f64 = pattern.iter().map(|d| d.abs()).sum();
     if !(len.is_finite() && period > 1e-12) || len < period || len / period > MAX_PERIODS {
+        return None;
+    }
+    if (len / period + 2.0) * pattern.len() as f64 > MAX_ELEMENTS {
         return None;
     }
     let mut drawn = Vec::new();
@@ -406,5 +413,17 @@ mod tests {
         let lt = Linetype::simple("DASHED", "", &[2.0, -1.0]);
         assert_eq!(apply(&[Vec2::ZERO, Vec2::new(2.99, 0.0)], &lt, 1.0, 0.0).len(), 1);
         assert_eq!(ranges(2.99, &lt, 1.0, 0.0, Layout::Open), None);
+    }
+
+    /// A long pattern repeated many times is drawn continuous rather than laid out element by
+    /// element: 100 elements over 40,000 periods is past the cap, 400 periods is not.
+    #[test]
+    fn a_long_pattern_repeated_too_often_is_continuous() {
+        let pattern: Vec<f64> = (0..100).map(|i| if i % 2 == 0 { 0.001 } else { -0.001 }).collect();
+        let lt = Linetype::simple("MANY", "", &pattern);
+        for how in [Layout::Open, Layout::Closed { anchor: 0.0 }] {
+            assert_eq!(ranges(4000.0, &lt, 1.0, 0.0, how), None, "{how:?}");
+            assert!(ranges(40.0, &lt, 1.0, 0.0, how).is_some_and(|r| r.len() > 10_000), "{how:?}");
+        }
     }
 }
