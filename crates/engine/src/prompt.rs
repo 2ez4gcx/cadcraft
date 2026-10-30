@@ -352,5 +352,24 @@ mod tests {
         assert_eq!(c.match_keyword("lts").as_deref(), Some("ltScale"));
         assert_eq!(c.match_keyword("s").as_deref(), Some("ltScale"));
         assert_eq!(c.match_keyword("tr").as_deref(), Some("TRansparency"));
+        // Even when no other keyword starts with it: AutoCAD 2024 answers QDIM's `DA` with "Point or
+        // option keyword required." and PEDIT's vertex `E` with "Invalid option keyword.".
+        let q = Prompt::new("", Accept::POINT).kw(&[
+            "Continuous",
+            "Staggered",
+            "Baseline",
+            "Ordinate",
+            "Radius",
+            "Diameter",
+            "datumPoint",
+            "Edit",
+            "seTtings",
+        ]);
+        assert_eq!(q.match_keyword("da"), None);
+        assert_eq!(q.match_keyword("datump").as_deref(), Some("datumPoint"));
+        assert_eq!(q.match_keyword("p").as_deref(), Some("datumPoint"));
+        let v = Prompt::new("", Accept::TEXT).kw(&["Next", "Previous", "Break", "Insert", "Move", "Regen", "Straighten", "Tangent", "Width", "eXit"]);
+        assert_eq!(v.match_keyword("e"), None);
+        assert_eq!(v.match_keyword("ex").as_deref(), Some("eXit"));
     }
 }

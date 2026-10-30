@@ -3,7 +3,7 @@
 
 use cadcraft_engine::Session;
 use cadcraft_engine::doc::color::{Color, Rgb};
-use cadcraft_engine::doc::{Lineweight, Transparency};
+use cadcraft_engine::doc::{Handle, Lineweight, Transparency};
 use serde_json::json;
 
 /// A session with line A (0,0)-(50,0) on layer 0 and line B (0,20)-(50,30) on layer L1, as `a` and
@@ -90,4 +90,60 @@ fn chprop_refuses_what_autocad_refuses() {
     let (s, [a, _]) = run("(command \"_.CHPROP\" a \"\" \"_L\")");
     assert_eq!(a.layer, "0");
     assert!(s.log.iter().any(|l| l == "Ambiguous response, please clarify..."), "{:?}", s.log);
+}
+
+/// Line a on layer 0 and lines b and c on the locked layer L1 (`a`, `b` and `c` in LISP); their
+/// handles.
+fn locked_drawing() -> (Session, Vec<Handle>) {
+    let mut s = Session::new();
+    s.doc_mut().unwrap().ensure_layer("L1");
+    for (v, y) in [("a", 0), ("b", 20), ("c", 40)] {
+        s.execute("line", &json!({ "points": [[0, y], [50, y]] })).unwrap();
+        s.cmdline(&format!("(setq {v} (entlast))")).unwrap();
+    }
+    s.cmdline("(command \"_.CHPROP\" b c \"\" \"_LA\" \"L1\" \"\")").unwrap();
+    s.execute("layer.set", &json!({ "name": "L1", "locked": true })).unwrap();
+    s.log.clear();
+    let hs = s.doc().unwrap().model.iter().map(|e| e.handle).collect();
+    (s, hs)
+}
+
+fn colors(s: &Session) -> Vec<Color> {
+    s.doc().unwrap().model.iter().map(|e| e.common.color).collect()
+}
+
+/// AutoCAD 2024 leaves objects on locked layers out at "Select objects" and says how many after
+/// what was found; with none left, Enter ends the command.
+#[test]
+fn chprop_leaves_objects_on_locked_layers_alone() {
+    // The colours of a, b and c after `code`, run with `pickfirst` selected.
+    let after = |code: &str, pickfirst: &[usize]| {
+        let (mut s, hs) = locked_drawing();
+        s.set_selection(pickfirst.iter().map(|i| hs[*i]).collect());
+        s.cmdline(code).unwrap();
+        (colors(&s), s.log.clone(), s.running.is_some())
+    };
+    let (c, log, _) = after("(command \"_.CHPROP\" (ssadd b (ssadd a)) \"\" \"_C\" 3 \"\")", &[]);
+    assert_eq!(c, [Color::Index(3), Color::ByLayer, Color::ByLayer]);
+    assert!(log.iter().any(|l| l == "1 was on a locked layer."), "{log:?}");
+    let (c, log, _) = after("(command \"_.CHPROP\" (ssadd c (ssadd b (ssadd a))) \"\" \"_C\" 4 \"\")", &[]);
+    assert_eq!(c, [Color::Index(4), Color::ByLayer, Color::ByLayer]);
+    assert!(log.iter().any(|l| l == "2 were on a locked layer."), "{log:?}");
+    // Nothing left: Enter ends the command.
+    let (_, log, running) = after("(command \"_.CHPROP\" b \"\")", &[]);
+    assert!(log.iter().any(|l| l == "1 was on a locked layer."), "{log:?}");
+    assert!(!running);
+    // The pickfirst selection loses them too; with none of it left, CHPROP asks for objects.
+    let (c, log, _) = after("(command \"_.CHPROP\" \"_C\" 5 \"\")", &[0, 1]);
+    assert_eq!(c, [Color::Index(5), Color::ByLayer, Color::ByLayer]);
+    assert!(log.iter().any(|l| l == "1 was on a locked layer."), "{log:?}");
+    let (c, _, _) = after("(command \"_.CHPROP\" a \"\" \"_C\" 6 \"\")", &[1]);
+    assert_eq!(c, [Color::Index(6), Color::ByLayer, Color::ByLayer]);
+    // The JSON form leaves them out as well, and says how many.
+    let (mut s, hs) = locked_drawing();
+    let r = s.execute("chprop", &json!({ "handles": [hs[0].hex(), hs[1].hex()], "color": 3 })).unwrap();
+    assert_eq!((r["changed"].as_u64(), r["locked"].as_u64()), (Some(1), Some(1)), "{r}");
+    let r = s.execute("chprop", &json!({ "handles": [hs[2].hex()], "color": 4 })).unwrap();
+    assert_eq!((r["changed"].as_u64(), r["locked"].as_u64()), (Some(0), Some(1)), "{r}");
+    assert_eq!(colors(&s), [Color::Index(3), Color::ByLayer, Color::ByLayer]);
 }

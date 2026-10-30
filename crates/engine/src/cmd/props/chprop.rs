@@ -10,14 +10,18 @@
 //! - a linetype not loaded yet is loaded from the standard ones (PHANTOM2);
 //! - a lineweight goes to the nearest standard one, with a note: 0.33 gives "Lineweight rounded to
 //!   nearest valid value of 0.35 mm";
-//! - `L` alone is "Ambiguous response, please clarify...".
+//! - `L` alone is "Ambiguous response, please clarify...";
+//! - objects on locked layers are left out at "Select objects", which says how many after what was
+//!   found ("1 was on a locked layer.", "2 were on a locked layer."); with none left, Enter ends
+//!   the command.
 
 use cadcraft_color::Color;
 use cadcraft_doc::{Entity, Handle, Lineweight};
 use serde_json::{Value, json};
 
-use super::super::curves::KW;
+use super::super::curves::{KW, is_locked};
 use super::super::machines::{SelOutcome, SelectPhase, number};
+use super::super::targets;
 use crate::{Accept, Input, Interactive, Prompt, Result, Session, Step};
 
 const PROPERTIES: [&str; 7] = ["Color", "LAyer", "LType", "ltScale", "LWeight", "Thickness", "TRansparency"];
@@ -151,6 +155,39 @@ impl ChpropM {
     }
 }
 
+/// The objects among `hs` on locked layers.
+fn locked(s: &Session, hs: &[Handle]) -> Vec<Handle> {
+    hs.iter().copied().filter(|h| is_locked(s, *h)).collect()
+}
+
+fn say_locked(s: &mut Session, n: usize) {
+    match n {
+        0 => {}
+        1 => s.echo("1 was on a locked layer."),
+        n => s.echo(format!("{n} were on a locked layer.")),
+    }
+}
+
+/// CHPROP's JSON form: `properties.set` on the objects that are not on locked layers, which the
+/// command leaves out too; "locked" says how many were.
+pub(super) fn run_chprop(s: &mut Session, p: &Value) -> Result<Value> {
+    let hs = targets(s, p)?;
+    let locked = locked(s, &hs);
+    if locked.is_empty() {
+        return super::run_set(s, p);
+    }
+    let free: Vec<Handle> = hs.into_iter().filter(|h| !locked.contains(h)).collect();
+    let mut r = if free.is_empty() {
+        json!({ "changed": 0 })
+    } else {
+        let mut q = p.as_object().cloned().unwrap_or_default();
+        q.insert("handles".into(), json!(free.iter().map(|h| h.hex()).collect::<Vec<_>>()));
+        super::run_set(s, &Value::Object(q))?
+    };
+    r["locked"] = json!(locked.len());
+    Ok(r)
+}
+
 /// A colour typed at CHPROP: 1–255, a name, BYLAYER or BYBLOCK (not 0 or 256, which COLOR takes).
 fn color(t: &str) -> Option<Color> {
     if t.bytes().all(|b| b.is_ascii_digit()) {
@@ -198,6 +235,16 @@ impl Interactive for ChpropM {
     fn begin(&mut self, s: &mut Session) -> Result<Step> {
         self.select = SelectPhase::begin(s);
         if self.select.done {
+            let locked = locked(s, &self.select.picked);
+            if !locked.is_empty() {
+                self.select.picked.retain(|h| !locked.contains(h));
+                say_locked(s, locked.len());
+                s.set_selection(self.select.picked.clone());
+                // Nothing left of the pickfirst selection: ask for objects instead.
+                self.select.done = !self.select.picked.is_empty();
+            }
+        }
+        if self.select.done {
             self.handles = self.select.picked.clone();
             self.ask = Some(Ask::Property);
         }
@@ -223,7 +270,17 @@ impl Interactive for ChpropM {
     }
     fn input(&mut self, s: &mut Session, i: Input) -> Result<Step> {
         let Some(ask) = self.ask else {
-            return Ok(match self.select.feed(s, &i)? {
+            // Objects on locked layers are left out, and said after what was found.
+            let (i, n) = match i {
+                Input::Pick(hs) if !self.select.removing => {
+                    let locked = locked(s, &hs);
+                    (Input::Pick(hs.into_iter().filter(|h| !locked.contains(h)).collect()), locked.len())
+                }
+                i => (i, 0),
+            };
+            let outcome = self.select.feed(s, &i)?;
+            say_locked(s, n);
+            return Ok(match outcome {
                 SelOutcome::More => Step::Continue,
                 SelOutcome::Done(hs) => {
                     self.handles = hs;
