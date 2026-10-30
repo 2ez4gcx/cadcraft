@@ -563,6 +563,24 @@ fn appload_and_load() {
     assert!(r["error"].as_str().is_some_and(|e| e.contains("bad argument type")));
 }
 
+/// `entlast` and `entnext` see what the same routine has just made, drawn or deleted: a routine
+/// edits the drawing in place, at the same address, so the handles they walk are taken again
+/// whenever the drawing changes.
+#[test]
+fn entlast_and_entnext_follow_edits_within_one_routine() {
+    let mut s = session();
+    let got = ok(
+        &mut s,
+        "(progn
+           (entmake '((0 . \"LINE\") (10 0.0 0.0 0.0) (11 1.0 0.0 0.0))) (setq a (entlast))
+           (entmake '((0 . \"LINE\") (10 0.0 1.0 0.0) (11 1.0 1.0 0.0))) (setq b (entlast))
+           (command \"_.CIRCLE\" '(5.0 5.0) 1.0) (setq c (entlast))
+           (list (equal a b) (equal (entnext a) b) (equal (entnext b) c) (cdr (assoc 0 (entget c)))
+                 (progn (entdel c) (equal (entlast) b))))",
+    );
+    assert_eq!(got, "(nil T T \"CIRCLE\" T)");
+}
+
 #[test]
 fn appload_reads_a_lsp_path_and_reports_its_commands() {
     let dir = std::env::temp_dir().join(format!("cadcraft-appload-lisp-{}", std::process::id()));

@@ -518,10 +518,13 @@ pub fn entdel(ctx: &mut Ctx<'_>, a: Vec<Value>) -> Result<Flow, LispError> {
     }
 }
 
-/// Every entity's handle in creation order (model space and layouts), cached per drawing.
+/// Every entity's handle in creation order (model space and layouts), cached until the drawing
+/// changes.
 fn handles_in_order(ctx: &mut Ctx<'_>) -> Arc<Vec<Handle>> {
     let Ok(st) = ctx.s.state() else { return Arc::default() };
-    let key = Arc::as_ptr(&st.doc) as usize;
+    // A routine edits the drawing in place, at the same address; the revision tells each change,
+    // as it does the canvas.
+    let key = (Arc::as_ptr(&st.doc) as usize, st.revision);
     if let Some((k, v)) = &ctx.env.order
         && *k == key
     {
