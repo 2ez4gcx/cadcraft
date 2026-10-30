@@ -92,8 +92,12 @@ fn stretch_entity(e: &mut Entity, wins: &[StretchArea], d: Vec2) {
             // 180°, end 0°), an object nothing can draw or pick, which CADCraft does not make.
             let g = Arc::new(a.center.xy(), a.radius, a.start, a.end);
             let (s0, e0) = (g.start_point(), g.end_point());
-            let (s1, e1) = (if inside(s0) { s0 + d } else { s0 }, if inside(e0) { e0 + d } else { e0 });
-            if (s1 != s0 || e1 != e0)
+            let (s_in, e_in) = (inside(s0), inside(e0));
+            let (s1, e1) = (if s_in { s0 + d } else { s0 }, if e_in { e0 + d } else { e0 });
+            if s_in && e_in {
+                // Both ends move: the arc moves whole (a full sweep has no chord to rebuild from).
+                (a.center.x, a.center.y) = (a.center.x + d.x, a.center.y + d.y);
+            } else if (s_in || e_in)
                 && let Some((r, _)) =
                     cadcraft_geom::bulge_to_arc(s1, e1, keep_height(cadcraft_geom::arc_to_bulge(g.sweep()), s0.dist(e0), s1.dist(e1)))
             {

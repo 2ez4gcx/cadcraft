@@ -820,6 +820,12 @@ fn stretch_arcs_bulges_and_splines_match_autocad() {
             [[-5.0, -5.0], [30.0, 30.0]],
             Want::Arc([5.0, 3.0], 20.0, 0.0, std::f64::consts::FRAC_PI_2),
         ),
+        // A full-sweep arc (start = end) inside the window: moved whole, though its chord is zero.
+        (
+            ("arc", json!({"center": [0.0, 0.0], "radius": 20.0, "start": 45.0, "end": 45.0})),
+            [[-25.0, -25.0], [25.0, 25.0]],
+            Want::Arc([5.0, 3.0], 20.0, std::f64::consts::FRAC_PI_4, std::f64::consts::FRAC_PI_4),
+        ),
         // SX-PLA-V1: the vertex starting an arc segment.
         (
             (
