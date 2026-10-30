@@ -591,7 +591,8 @@ impl HatchM {
         match a {
             HatchAsk::Pattern => {
                 let up = match patfile::typed_file(s, t.trim()) {
-                    Some(n) if n.is_empty() => return Ok(true),
+                    // Nothing loaded from it: the pattern is asked again.
+                    Some(n) if n.is_empty() => return Ok(false),
                     Some(n) => n,
                     None => t.trim().to_ascii_uppercase(),
                 };

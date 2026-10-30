@@ -156,6 +156,16 @@ fn hatch_pattern_prompt_takes_a_pat_file_name() {
     s.cmdline("5,5").unwrap();
     s.cmdline("").unwrap();
     assert_eq!(hatches(&s).iter().filter(|h| h.pattern == "MYOTHER").count(), 1);
+
+    // A file with no pattern in it, or none at all, asks for the pattern again.
+    let empty = dir.file("EMPTY.pat", ";; no patterns\n");
+    for file in [empty, dir.path_str("MISSING.pat")] {
+        s.cmdline("hatch").unwrap();
+        s.cmdline("p").unwrap();
+        s.cmdline(&file).unwrap();
+        assert!(s.prompt_text().contains("Enter a pattern name"), "{file}: {}", s.prompt_text());
+        s.cancel();
+    }
 }
 
 #[test]
