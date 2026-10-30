@@ -565,6 +565,10 @@ fn getvar_and_setvar_take_angle_variables_in_radians() {
     s.cmdline("SETVAR HPANG 45").unwrap();
     assert!((degrees(&s, "HPANG") - 45.0).abs() < 1e-9);
     assert_eq!(ok(&mut s, "(equal (getvar \"HPANG\") 0.7853981633974482 1e-12)"), "T");
+    // DIMJOGANG set to a whole number of degrees still takes a fraction of one from LISP.
+    s.cmdline("SETVAR DIMJOGANG 45").unwrap();
+    ok(&mut s, "(setvar \"DIMJOGANG\" 0.5)");
+    assert!((degrees(&s, "DIMJOGANG") - 0.5_f64.to_degrees()).abs() < 1e-9, "{}", degrees(&s, "DIMJOGANG"));
     // Other variables are as they were.
     assert_eq!(ok(&mut s, "(getvar \"ANGDIR\")"), "0");
 }
