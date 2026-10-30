@@ -91,6 +91,39 @@ fn extents_count_layers_turned_off_as_autocad() {
     d.add(&Space::Model, Common { layer: "FRZ".into(), ..Default::default() }, at(-500.0)).unwrap();
     // AutoCAD: (1000, 1000)…(1050, 1001).
     assert_eq!(extents_pair(&d), (Vec2::new(1000.0, 1000.0), Vec2::new(1050.0, 1001.0)));
+
+    // An insert's attributes lie on their own layer, else on their definition's: one on a frozen
+    // layer either way does not count, one on a layer turned off does.
+    let mut d = Drawing::new_imperial();
+    for (name, on, frozen) in [("IOFF", false, false), ("AOFF", false, false), ("AFRZ", true, true)] {
+        let mut l = Layer::new(name);
+        (l.on, l.frozen) = (on, frozen);
+        d.layers.push(l);
+    }
+    let attrib = |tag: &str, at: (f64, f64), layer: Option<&str>| {
+        let mut a = match plain_attdef(tag) {
+            EntityKind::AttDef(a) => a,
+            _ => unreachable!(),
+        };
+        a.text.insert = Vec3::new(at.0, at.1, 0.0);
+        a.props.layer = layer.map(str::to_string);
+        a
+    };
+    let mut blk = Block::new("BA");
+    blk.entities.push(on_layer("0", line((0.0, 0.0), (1.0, 1.0)), 1));
+    blk.entities.push(on_layer("AFRZ", plain_attdef("DEF"), 2));
+    d.blocks.insert("BA".into(), std::sync::Arc::new(blk));
+    let ins = match plain_insert("BA") {
+        EntityKind::Insert(i) => {
+            let attribs =
+                vec![attrib("OWN", (0.0, 300.0), Some("AFRZ")), attrib("DEF", (0.0, -400.0), None), attrib("OFF", (40.0, 0.0), Some("AOFF"))];
+            EntityKind::Insert(Insert { attribs, ..i })
+        }
+        k => k,
+    };
+    d.add(&Space::Model, Common { layer: "IOFF".into(), ..Default::default() }, ins).unwrap();
+    let (min, max) = extents_pair(&d);
+    assert!(min.y > -1.0 && max.y < 50.0 && max.x > 40.0, "{min:?} {max:?}");
 }
 
 #[test]
@@ -352,6 +385,31 @@ fn plain_insert(block: &str) -> EntityKind {
         rows: 1,
         col_spacing: 0.0,
         row_spacing: 0.0,
+    })
+}
+
+/// An attribute definition `tag` at the origin, one unit high, reading "x".
+fn plain_attdef(tag: &str) -> EntityKind {
+    EntityKind::AttDef(Attrib {
+        tag: tag.into(),
+        text: Text {
+            insert: Vec3::ZERO,
+            align_pt: None,
+            height: 1.0,
+            value: "x".into(),
+            rotation: 0.0,
+            width_factor: 1.0,
+            oblique: 0.0,
+            style: "Standard".into(),
+            halign: HAlign::Left,
+            valign: VAlign::Baseline,
+        },
+        invisible: false,
+        constant: false,
+        prompt: String::new(),
+        props: Default::default(),
+        multiline: None,
+        modes: Default::default(),
     })
 }
 

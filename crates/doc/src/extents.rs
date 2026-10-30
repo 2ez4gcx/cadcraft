@@ -39,9 +39,23 @@ fn text_box(t: &crate::Text, len: usize) -> Bounds2 {
 /// `off_counts`: a layer turned off counts too, as in the drawing's extents ([`extent_bounds`]).
 fn in_block_visible(d: &Drawing, e: &Entity, off_counts: bool) -> bool {
     // Attribute definitions are not drawn in an insert (its attribs are, see below).
-    !matches!(e.kind, EntityKind::AttDef(_))
-        && e.common.visible
-        && (e.common.layer == "0" || d.layer(&e.common.layer).is_none_or(|l| !l.frozen && (l.on || off_counts)))
+    !matches!(e.kind, EntityKind::AttDef(_)) && e.common.visible && layer_counts(d, &e.common.layer, off_counts)
+}
+
+/// Whether what lies on `layer` inside an insert counts: layer "0" takes the insert's layer, which
+/// the caller has checked; a frozen layer never counts, one turned off only with `off_counts`.
+fn layer_counts(d: &Drawing, layer: &str, off_counts: bool) -> bool {
+    layer == "0" || d.layer(layer).is_none_or(|l| !l.frozen && (l.on || off_counts))
+}
+
+/// The layer an insert's attribute draws on, as the renderer takes it: its own, else its
+/// definition's (layer "0" being the insert's).
+fn attrib_layer<'a>(d: &'a Drawing, ins: &crate::Insert, a: &'a crate::Attrib) -> &'a str {
+    a.props.layer.as_deref().unwrap_or_else(|| {
+        d.block(&ins.block)
+            .and_then(|blk| blk.entities.iter().find(|be| matches!(&be.kind, EntityKind::AttDef(ad) if ad.tag.eq_ignore_ascii_case(&a.tag))))
+            .map_or("0", |be| be.common.layer.as_str())
+    })
 }
 
 /// A text that draws no glyph (empty, or only blanks and non-breaking spaces) takes no room.
@@ -143,7 +157,7 @@ fn bounds_in<'a>(d: &'a Drawing, e: &Entity, depth: usize, blocks: &mut HashMap<
                 }
             }
             for a in &ins.attribs {
-                if !a.invisible {
+                if !a.invisible && layer_counts(d, attrib_layer(d, ins, a), off_counts) {
                     b = b.union(&match a.multiline_text() {
                         Some(m) => mtext_box(&m),
                         None => text_box(&a.text, a.text.value.chars().count()),
