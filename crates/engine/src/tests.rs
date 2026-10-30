@@ -1274,11 +1274,9 @@ fn pline_undo_mode_and_plinewid_match_autocad() {
     assert!(matches!(&s.doc().unwrap().model.last().unwrap().kind, EntityKind::LwPolyline(p) if p.const_width == 0.75));
     // …and the ending width of the last Width or Halfwidth answer (half-width 0.5: PLINEWID 1).
     let mut s = Session::new();
-    s.cmdline(
-        "pline -9.151085154682761,12.9438035725412 _W 0.0934460985004879 1.547654372298795 19.161590651864245,38.23079339857958 \
-         26.720225103092986,-9.028145532375504 _H 0.5 0.5 -24.7035288980598,-14.309723714209586",
-    )
-    .unwrap();
+    s.cmdline("pline -9.151085154682761,12.9438035725412 _W 0.0934460985004879 1.547654372298795").unwrap();
+    assert_eq!(s.doc().unwrap().header.f64("PLINEWID", 0.0), 1.547654372298795);
+    s.cmdline("19.161590651864245,38.23079339857958 26.720225103092986,-9.028145532375504 _H 0.5 0.5 -24.7035288980598,-14.309723714209586").unwrap();
     s.cmdline("").unwrap();
     assert_eq!(s.doc().unwrap().header.f64("PLINEWID", 0.0), 1.0);
     // PLINEWID is an ordinary system variable: 0 until set, typed at the command line or set
