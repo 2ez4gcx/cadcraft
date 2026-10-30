@@ -1291,6 +1291,17 @@ fn pline_undo_mode_and_plinewid_match_autocad() {
     s.cmdline("pline 0,0 10,0").unwrap();
     s.cmdline("").unwrap();
     assert!(matches!(&s.doc().unwrap().model.last().unwrap().kind, EntityKind::LwPolyline(p) if p.const_width == 0.5));
+    // The JSON form starts there too, unless it gives a width or its vertices give theirs.
+    let width = |s: &mut Session, p: serde_json::Value| {
+        s.execute("pline", &p).unwrap();
+        match &s.doc().unwrap().model.last().unwrap().kind {
+            EntityKind::LwPolyline(p) => p.const_width,
+            k => panic!("{k:?}"),
+        }
+    };
+    assert_eq!(width(&mut s, json!({"vertices": [[0, 0], [10, 0]]})), 0.5);
+    assert_eq!(width(&mut s, json!({"vertices": [[0, 0], [10, 0]], "width": 0})), 0.0);
+    assert_eq!(width(&mut s, json!({"vertices": [{"p": [0, 0], "startWidth": 1, "endWidth": 2}, [10, 0]]})), 0.0);
 }
 
 #[test]

@@ -41,15 +41,21 @@ fn vertex_value(v: &Value) -> Option<PolyVertex> {
 
 pub(super) fn run_pline(s: &mut Session, p: &Value) -> Result<Value> {
     let raw = p.get("vertices").or_else(|| p.get("points")).and_then(Value::as_array);
+    let mut vertex_widths = false;
     for v in raw.into_iter().flatten() {
-        size_param("pline", v, "startWidth", true)?;
-        size_param("pline", v, "endWidth", true)?;
+        vertex_widths |= size_param("pline", v, "startWidth", true)?.is_some() | size_param("pline", v, "endWidth", true)?.is_some();
     }
     let vs: Vec<PolyVertex> = raw.map(|a| a.iter().filter_map(vertex_value).collect()).unwrap_or_default();
     if vs.len() < 2 {
         return Err(bad("pline", "`vertices` needs at least 2 points"));
     }
-    let width = size_param("pline", p, "width", true)?.unwrap_or(0.0);
+    // Without a width, the polyline starts at PLINEWID as the command does (unless its vertices
+    // give their own widths).
+    let width = match size_param("pline", p, "width", true)? {
+        Some(w) => w,
+        None if vertex_widths => 0.0,
+        None => Some(s.doc()?.header.f64("PLINEWID", 0.0)).filter(|w| w.is_finite() && *w > 0.0).unwrap_or(0.0),
+    };
     let mut k = lwpoly(vs, bool_or(p, "closed", false));
     if let EntityKind::LwPolyline(pl) = &mut k {
         pl.const_width = width;
