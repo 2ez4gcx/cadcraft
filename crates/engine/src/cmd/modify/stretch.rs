@@ -1,5 +1,9 @@
 use super::transform::{delta_of, transform_entities};
-use super::*;
+use super::{
+    Accept, Entity, EntityKind, Handle, Input, Interactive, Mat3, Prompt, Result, SelectKind, SelectMode, Session, Step, Value, Vec2, bad, json,
+    line, points_param,
+};
+use cadcraft_geom::Arc;
 
 /// An area whose vertices STRETCH moves: a window's box, or a polygon closed back to its first
 /// point.
