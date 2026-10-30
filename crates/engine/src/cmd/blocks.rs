@@ -605,7 +605,8 @@ struct InsertM {
     base: Option<Vec2>,
     x_scale: Option<f64>,
     scale: Option<Vec2>,
-    /// The Z scale factor when given (a preset or XYZ); otherwise the X factor's size.
+    /// The Z scale factor when given (a preset or XYZ); otherwise the X factor's size. AutoCAD
+    /// keeps a Z factor typed at XYZ's Z prompt as given, and stores the size of any other.
     z_scale: Option<f64>,
     /// X/Y/Z presets given so far.
     axes: [Option<f64>; 3],
@@ -684,6 +685,17 @@ impl InsertM {
 
     /// X/Y scale factors with Z: as given, else the X factor's size (AutoCAD 2024: X -1 with Y
     /// as X stores Z +1).
+    /// X and Y from a corner: XYZ still asks Z, which defaults to the size of X.
+    fn corner_scale(&mut self, s: &mut Session, sc: Vec2) -> Result<Step> {
+        self.scale = Some(sc);
+        if self.xyz {
+            self.x_scale = Some(sc.x);
+            self.stage = InsStage::ZScale;
+            return Ok(Step::Continue);
+        }
+        self.advance(s)
+    }
+
     fn scale3(&self, sc: Vec2) -> Vec3 {
         Vec3::new(sc.x, sc.y, self.z_scale.unwrap_or(sc.x.abs()))
     }
@@ -806,7 +818,7 @@ impl Interactive for InsertM {
                     _ => return Ok(Step::Continue),
                 };
                 self.scale = Some(Vec2::new(f, f));
-                self.z_scale = Some(f);
+                self.z_scale = Some(f.abs());
                 // Exploded insertion asks its one scale factor after the insertion point.
                 if self.at.is_some() {
                     return self.advance(s);
@@ -825,7 +837,7 @@ impl Interactive for InsertM {
                 }
                 let [x, y, z] = self.axes.map(|a| a.unwrap_or(1.0));
                 self.scale = Some(Vec2::new(x, y));
-                self.z_scale = Some(z);
+                self.z_scale = Some(z.abs());
                 self.stage = InsStage::Point;
             }
             InsStage::PresetRotation => {
@@ -840,8 +852,8 @@ impl Interactive for InsertM {
                 Input::Keyword(k) if k == "Corner" => self.stage = InsStage::Corner,
                 Input::Keyword(k) if k == "XYZ" => self.xyz = true,
                 Input::Point(p) => {
-                    self.scale = Some(Self::corner(self.at.unwrap_or_default(), p)?);
-                    return self.advance(s);
+                    let sc = Self::corner(self.at.unwrap_or_default(), p)?;
+                    return self.corner_scale(s, sc);
                 }
                 Input::Text(t) => {
                     self.x_scale = Some(nonzero(&t)?);
@@ -855,8 +867,8 @@ impl Interactive for InsertM {
             },
             InsStage::Corner => {
                 if let Input::Point(p) = i {
-                    self.scale = Some(Self::corner(self.at.unwrap_or_default(), p)?);
-                    return self.advance(s);
+                    let sc = Self::corner(self.at.unwrap_or_default(), p)?;
+                    return self.corner_scale(s, sc);
                 }
             }
             InsStage::YScale => {
@@ -876,7 +888,7 @@ impl Interactive for InsertM {
             InsStage::ZScale => {
                 self.z_scale = Some(match i {
                     Input::Text(t) => nonzero(&t)?,
-                    Input::Enter => self.x_scale.unwrap_or(1.0),
+                    Input::Enter => self.x_scale.unwrap_or(1.0).abs(),
                     _ => return Ok(Step::Continue),
                 });
                 return self.advance(s);
