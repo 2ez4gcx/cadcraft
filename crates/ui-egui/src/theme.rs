@@ -326,19 +326,11 @@ pub fn install_fonts(ctx: &egui::Context, language: &str) {
     let chinese = language.starts_with("zh");
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let candidates: &[&str] = if cfg!(target_os = "macos") {
-            &["/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf"]
-        } else if cfg!(windows) {
-            &["C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\arial.ttf"]
-        } else {
-            &[
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/TTF/DejaVuSans.ttf",
-                "/usr/share/fonts/noto/NotoSans-Regular.ttf",
-                "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-            ]
-        };
-        for path in candidates {
+        for path in system_ui_candidates() {
+            // A Vietnamese interface takes the first one with its letters.
+            if language == "vi" && vietnamese_font() != Some(std::path::Path::new(path)) {
+                continue;
+            }
             if let Ok(bytes) = std::fs::read(path) {
                 fonts.font_data.insert("system-ui".into(), std::sync::Arc::new(egui::FontData::from_owned(bytes)));
                 if let Some(f) = fonts.families.get_mut(&FontFamily::Proportional) {
@@ -407,6 +399,52 @@ pub fn install_fonts(ctx: &egui::Context, language: &str) {
         f.push("Hack".into());
     }
     ctx.set_fonts(fonts);
+}
+
+/// The system interface fonts [`install_fonts`] looks for, in order; it loads the first installed
+/// one ahead of egui's bundled faces.
+#[cfg(not(target_arch = "wasm32"))]
+fn system_ui_candidates() -> &'static [&'static str] {
+    if cfg!(target_os = "macos") {
+        &["/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Helvetica.ttc", "/Library/Fonts/Arial.ttf"]
+    } else if cfg!(windows) {
+        &["C:\\Windows\\Fonts\\segoeui.ttf", "C:\\Windows\\Fonts\\arial.ttf"]
+    } else {
+        &[
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+            "/usr/share/fonts/noto/NotoSans-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+        ]
+    }
+}
+
+/// Whether `face` has every letter Vietnamese adds to Latin: the tone-marked vowels of Latin
+/// Extended Additional (U+1EA0–U+1EF9), and ơ, ư, đ.
+fn covers_vietnamese(face: &cadcraft_fonts::ttf::Face) -> bool {
+    ('\u{1ea0}'..='\u{1ef9}').chain(['ơ', 'Ơ', 'ư', 'Ư', 'đ', 'Đ']).all(|c| face.has_glyph(c))
+}
+
+/// The system interface font the Vietnamese interface takes: the first of
+/// [`system_ui_candidates`] whose first face (the one egui uses) has every Vietnamese letter.
+/// Segoe UI, Arial, SF, DejaVu Sans and Noto Sans do; egui's bundled faces stop at Latin
+/// Extended-A, so without one the interface stays English (as the web build does). Checked once.
+pub fn vietnamese_font() -> Option<&'static std::path::Path> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        static FOUND: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
+        FOUND
+            .get_or_init(|| {
+                system_ui_candidates().iter().map(std::path::PathBuf::from).find(|p| {
+                    read_capped(p, MAX_UI_FONT_BYTES)
+                        .and_then(|bytes| cadcraft_fonts::ttf::faces(&std::sync::Arc::new(bytes)).into_iter().next())
+                        .is_some_and(|face| covers_vietnamese(&face))
+                })
+            })
+            .as_deref()
+    }
+    #[cfg(target_arch = "wasm32")]
+    None
 }
 
 /// The faces `build.rs` embedded from craft-fonts that the interface loads, in order: every CJK
@@ -659,10 +697,12 @@ pub fn shows_hangul(language: &str) -> bool {
 
 /// Whether the interface can show `language` without missing-glyph boxes: Chinese needs a font
 /// with its glyphs (installed, or the CJK face this build embedded from craft-fonts), Korean a
-/// font with Hangul, العربية an installed Arabic font or the embedded Arabic face.
+/// font with Hangul, العربية an installed Arabic font or the embedded Arabic face, Tiếng Việt a
+/// system interface font with its tone-marked letters ([`vietnamese_font`]).
 pub fn can_show(language: &str) -> bool {
     match language {
         "ko" => shows_hangul("ko"),
+        "vi" => vietnamese_font().is_some(),
         "ar" => arabic_font().is_some() || embedded_script("Arab"),
         l if l.starts_with("zh") => cjk_font().is_some() || embedded_script("Hans") || embedded_script("Hant"),
         _ => true,
