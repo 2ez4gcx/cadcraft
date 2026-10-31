@@ -172,7 +172,16 @@ pub fn format_angle(a: f64, aunits: i64, auprec: i64) -> String {
             } else {
                 ("S", "E", deg - 270.0)
             };
-            format!("{ns} {} {ew}", format_dms(ang, prec))
+            // A bearing shown as due north, south, east or west is that letter, as AutoCAD 2024
+            // shows it ("E" for 0), except to whole degrees ("N 90d E").
+            let dms = format_dms(ang, prec);
+            if prec > 0 && dms == format_dms(0.0, prec) {
+                ns.to_string()
+            } else if prec > 0 && dms == format_dms(90.0, prec) {
+                ew.to_string()
+            } else {
+                format!("{ns} {dms} {ew}")
+            }
         }
         _ => format!("{:.*}", prec, wrap_full_turn(deg, 360.0, prec)),
     }
@@ -539,6 +548,29 @@ mod tests {
         ];
         for (angle, prec, expected) in cases {
             assert_eq!(format_angle(angle, 1, prec), expected, "AUPREC {prec}");
+        }
+    }
+
+    #[test]
+    fn surveyors_units_show_a_due_bearing_as_one_letter() {
+        // AutoCAD 2024's ANGTOS in surveyor's units (measured): due east, north, west and south are
+        // one letter, also when the bearing only rounds to one; to whole degrees east stays a
+        // bearing.
+        let cases = [
+            (0.0, 0, "N 90d E"),
+            (0.0, 1, "E"),
+            (0.0, 2, "E"),
+            (0.0, 4, "E"),
+            (PI / 2.0, 1, "N"),
+            (PI, 4, "W"),
+            (3.0 * PI / 2.0, 4, "S"),
+            (0.00001, 2, "E"),
+            (1.0, 1, "N 32d42' E"),
+            (1.0, 3, "N 32d42'15\" E"),
+            (1.0, 7, "N 32d42'15.194\" E"),
+        ];
+        for (angle, prec, expected) in cases {
+            assert_eq!(format_angle(angle, 4, prec), expected, "{angle} AUPREC {prec}");
         }
     }
 
