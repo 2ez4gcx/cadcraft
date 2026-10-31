@@ -217,6 +217,9 @@ fn run_dist(s: &mut Session, p: &Value) -> Result<Value> {
     let a = point3_req(s, "dist", p, "p1")?;
     let b = point3_req(s, "dist", p, "p2")?;
     let d = b - a;
+    if !d.len().is_finite() {
+        return Err(bad("dist", "the distance is too large"));
+    }
     s.distance = d.len();
     s.last_point = a.xy();
     Ok(json!({
@@ -515,7 +518,7 @@ pub(super) fn object_area(s: &Session, h: Handle) -> Result<(f64, f64)> {
         // Like an open polyline: the area closed by the chord, the perimeter its own length.
         EntityKind::Spline(sp) if sp.is_valid() => {
             let b = sp.bounds();
-            let pts = sp.tessellate((b.min.dist(b.max) * 1e-7).max(1e-12));
+            let pts = sp.tessellate_spans((b.min.dist(b.max) * 1e-7).max(1e-12));
             (cadcraft_geom::shoelace(&pts).abs(), sp.length())
         }
         _ => return Err(bad("area", "object has no area")),
@@ -881,6 +884,9 @@ impl Interactive for DistM {
                 };
                 let (za, zb) = if self.first_source.is_some() || s.picked_viewport.is_some() { (0.0, 0.0) } else { (z_at(s, a), z_at(s, b)) };
                 let (a, b) = (Vec3::new(a.x, a.y, za), Vec3::new(b.x, b.y, zb));
+                if !(b - a).len().is_finite() {
+                    return Err(bad("dist", "the distance is too large"));
+                }
                 let t = dist_text(s, a, b);
                 for l in t.lines() {
                     s.echo(l.to_string());
@@ -915,6 +921,9 @@ impl DistM {
             .as_deref()
             .or(self.multi.as_deref())
             .map_or(0.0, |pts| if closed { arcs::polyline(pts, &self.bulges, true).len() } else { path_len(pts, &self.bulges) });
+        if !d.is_finite() {
+            return Err(bad("dist", "the distance is too large"));
+        }
         s.echo(format!("Distance = {}", fmt_d(s, d)));
         s.distance = d;
         Ok(Step::Done)

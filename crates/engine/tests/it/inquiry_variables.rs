@@ -6,7 +6,7 @@
 
 use cadcraft_engine::doc::{Common, EntityKind, Handle};
 use cadcraft_engine::geom::{Spline, Vec2};
-use cadcraft_engine::{Session, sysvars};
+use cadcraft_engine::{Input, Session, sysvars};
 use serde_json::{Value, json};
 
 fn var(s: &Session, name: &str) -> f64 {
@@ -121,6 +121,25 @@ fn area_of_an_open_spline_closes_it_by_its_chord() {
 }
 
 #[test]
+fn area_of_a_spline_counts_its_narrow_knot_spans() {
+    // A degree-1 spline is its control polygon, here the triangle (0,0) (1,0) (0,1): area 0.5,
+    // perimeter 2 + sqrt(2), though two of its three knot spans are a billionth of the domain.
+    let control = [(0.0, 0.0), (1.0, 0.0), (0.0, 1.0), (0.0, 0.0)];
+    let spline = Spline {
+        degree: 1,
+        knots: vec![0.0, 0.0, 1e-9, 2e-9, 1.0, 1.0],
+        control: control.iter().map(|&(x, y)| Vec2::new(x, y)).collect(),
+        ..Spline::default()
+    };
+    let mut s = Session::new();
+    let space = s.space();
+    let h = s.doc_mut().unwrap().add(&space, Common::default(), EntityKind::Spline(spline)).unwrap();
+    lisp(&mut s, &format!("(command \"_.AREA\" \"_O\" (list (handent \"{}\") '(0.5 0.0)))", h.hex()));
+    assert!(close(var(&s, "AREA"), 0.5), "{}", var(&s, "AREA"));
+    assert!(close(var(&s, "PERIMETER"), 2.0 + 2f64.sqrt()), "{}", var(&s, "PERIMETER"));
+}
+
+#[test]
 fn dist_sets_the_distance_and_leaves_lastpoint_at_the_first_point() {
     let mut s = Session::new();
     lisp(&mut s, "(command \"_.DIST\" '(0.5 0.25) '(0.53 0.29))");
@@ -158,4 +177,57 @@ fn the_json_forms_set_them_too_and_they_are_read_only() {
     for name in ["AREA", "PERIMETER", "DISTANCE"] {
         assert!(s.execute("setvar", &json!({ "name": name, "value": 1 })).is_err(), "{name}");
     }
+}
+
+#[test]
+fn lastpoint_after_multiple_points_is_the_last_point_entered() {
+    // A length typed with Length extends the path, but LASTPOINT stays at the last point picked;
+    // after Undo it stays at the point undone (AutoCAD 2024 leaves LASTPOINT at 10,0 and 10,10).
+    let mut s = Session::new();
+    lisp(&mut s, "(command \"_.DIST\" '(0.0 0.0) \"_M\" '(10.0 0.0) \"_L\" 5.0 \"\")");
+    assert!(close(var(&s, "DISTANCE"), 15.0), "{}", var(&s, "DISTANCE"));
+    let (x, y) = lastpoint(&s);
+    assert!(close(x, 10.0) && close(y, 0.0), "{x}, {y}");
+    let mut s = Session::new();
+    lisp(&mut s, "(command \"_.DIST\" '(0.0 0.0) \"_M\" '(10.0 0.0) '(10.0 10.0) \"_U\" \"_T\")");
+    assert!(close(var(&s, "DISTANCE"), 10.0), "{}", var(&s, "DISTANCE"));
+    let (x, y) = lastpoint(&s);
+    assert!(close(x, 10.0) && close(y, 10.0), "{x}, {y}");
+}
+
+#[test]
+fn a_distance_too_large_to_measure_is_refused_and_not_kept() {
+    let mut s = Session::new();
+    lisp(&mut s, "(command \"_.DIST\" '(0.5 0.25) '(0.53 0.29))");
+    assert!(close(var(&s, "DISTANCE"), 0.05));
+    // Finite points whose distance overflows: the JSON form, two picked points, Multiple points.
+    assert!(s.execute("dist", &json!({ "p1": [-1e308, 0], "p2": [1e308, 0] })).is_err());
+    s.cmdline("dist").unwrap();
+    s.input(Input::Point(Vec2::new(-1e308, 0.0))).unwrap();
+    s.input(Input::Point(Vec2::new(1e308, 0.0))).unwrap();
+    assert!(s.log.last().is_some_and(|l| l.contains("the distance is too large")), "{:?}", s.log.last());
+    s.cancel();
+    s.cmdline("dist").unwrap();
+    s.input(Input::Point(Vec2::new(-1e308, 0.0))).unwrap();
+    s.cmdline("m").unwrap();
+    s.input(Input::Point(Vec2::new(1e308, 0.0))).unwrap();
+    s.input(Input::Enter).unwrap();
+    assert!(s.log.last().is_some_and(|l| l.contains("the distance is too large")), "{:?}", s.log.last());
+    s.cancel();
+    assert!(close(var(&s, "DISTANCE"), 0.05), "{}", var(&s, "DISTANCE"));
+}
+
+#[test]
+fn the_variable_list_shows_the_sessions_values() {
+    // A drawing's header can carry these names; GETVAR reads the session's, and so does the list.
+    let mut s = Session::new();
+    s.doc_mut().unwrap().header.set_f64("AREA", 99.0);
+    // Every DXF header carries ORTHOMODE; the session's ortho is off.
+    s.doc_mut().unwrap().header.set_i64("ORTHOMODE", 1);
+    lisp(&mut s, "(command \"_.AREA\" '(0.0 0.0) '(10.0 0.0) '(10.0 10.0) \"\")");
+    let list = s.execute("sysvars", &json!({})).unwrap();
+    assert!(close(var(&s, "AREA"), 50.0));
+    assert_eq!(list["AREA"].as_f64(), Some(var(&s, "AREA")), "{}", list["AREA"]);
+    assert_eq!(list["ORTHOMODE"], sysvars::get(&s, "ORTHOMODE").unwrap());
+    assert_eq!(list["ORTHOMODE"], 0);
 }
