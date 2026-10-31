@@ -82,7 +82,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .menu(&["Modify", "Trim"])
             .alias(&["tr"])
             .params(
-                "{handle, pick: [x,y] | fence: [[x,y],...] | crossing: [[x,y],[x,y]], edges?: [hex], edgeMode?: \"extend\"|\"none\", mode?: \"quick\"|\"standard\"} → {handles: the object (kept, reshaped) then the new pieces; none when it was erased} (pick) | {trimmed} (fence, crossing)",
+                "{handle, pick: [x,y] | fence: [[x,y],...] | crossing: [[x,y],[x,y]], edges?: [hex] (default: every object; a polyline that is one of them, or every object in Standard mode, also cuts itself at its vertices and crossings), edgeMode?: \"extend\"|\"none\", mode?: \"quick\"|\"standard\"} → {handles: the object (kept, reshaped) then the new pieces; none when it was erased} (pick) | {trimmed} (fence, crossing)",
             )
             .interactive(|_| Ok(Box::new(TrimM::new(false)))),
         CommandSpec::new("extend", "Extend", trimextend::run_extend)
