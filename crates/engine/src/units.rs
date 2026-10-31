@@ -341,6 +341,9 @@ fn parse_units(s: &str, aunits: i64) -> Option<(f64, bool)> {
         ((num(g)? * 0.9).to_radians(), false)
     } else if let Some(b) = bearing(&t) {
         (b, true)
+    } else if let Some(b) = (aunits == 4).then(|| cardinal(&t)).flatten() {
+        // A due bearing as surveyor's units show it: one letter.
+        (b, true)
     } else if let Some(v) = num(&t) {
         let a = match aunits {
             2 => (v * 0.9).to_radians(),
@@ -352,6 +355,17 @@ fn parse_units(s: &str, aunits: i64) -> Option<(f64, bool)> {
         (parse_dms(&t)?.to_radians(), false)
     };
     v.0.is_finite().then_some(v)
+}
+
+/// A due bearing (`n`, `e`, `s`, `w`, lower case) as radians counterclockwise from +X.
+fn cardinal(t: &str) -> Option<f64> {
+    match t {
+        "e" => Some(0.0),
+        "n" => Some(PI / 2.0),
+        "w" => Some(PI),
+        "s" => Some(1.5 * PI),
+        _ => None,
+    }
 }
 
 /// A surveyor's bearing (`n45d30'e`, lower case) as radians counterclockwise from +X.
@@ -549,6 +563,18 @@ mod tests {
         for (angle, prec, expected) in cases {
             assert_eq!(format_angle(angle, 1, prec), expected, "AUPREC {prec}");
         }
+    }
+
+    #[test]
+    fn surveyors_units_read_a_due_bearing_typed_as_one_letter() {
+        // What surveyor's units show for a due bearing can be typed back, e.g. `@10<E`.
+        let a = AngleSettings { aunits: 4, angbase: 1.0, clockwise: true };
+        for (t, want) in [("E", 0.0), ("n", PI / 2.0), ("W", PI), ("s", 1.5 * PI)] {
+            let got = a.direction(t).unwrap();
+            assert!((got - want).abs() < 1e-12, "{t}: {got}");
+        }
+        // Other angle units don't take a bare letter.
+        assert_eq!(AngleSettings { aunits: 0, angbase: 0.0, clockwise: false }.direction("E"), None);
     }
 
     #[test]
