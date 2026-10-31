@@ -20,6 +20,7 @@ mod break_join_locked_layers;
 mod break_keeps_z;
 mod break_trim_keep_handle;
 mod break_trim_polyline_rules;
+mod breakatpoint_command_line;
 mod burst;
 mod chprop_command;
 mod compare_export;
