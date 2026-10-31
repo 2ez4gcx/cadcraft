@@ -56,6 +56,7 @@ mod hatch_numeric_validation;
 mod hatch_options;
 mod helix;
 mod inquiry_keywords;
+mod inquiry_variables;
 mod inquiry_z;
 mod insert_prompts;
 mod isometric;
