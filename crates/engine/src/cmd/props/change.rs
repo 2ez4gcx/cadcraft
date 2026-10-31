@@ -32,7 +32,7 @@ use cadcraft_geom::{Mat3, Vec2, Vec3};
 use serde_json::{Value, json};
 
 use super::super::machines::{SelOutcome, SelectPhase, number};
-use super::super::{point_value, targets};
+use super::super::{bad, f64_req, point_req, targets};
 use super::chprop::{ChpropM, begin_unlocked, feed_unlocked, locked};
 use crate::{Accept, EngineError, Input, Interactive, Prompt, Result, Session, Step};
 
@@ -386,11 +386,17 @@ pub(super) fn elevate(s: &mut Session, hs: &[Handle], z: f64) -> Result<(Vec<Han
 /// Properties ▸ Elev does (`differingZ`: objects whose points differ in z); objects on locked
 /// layers are left out (`locked`).
 pub(super) fn run_change(s: &mut Session, p: &Value) -> Result<Value> {
+    // A point or an elevation that can't be read is refused, and so is a call with neither.
+    let point = p.get("point").map(|_| point_req("change", p, "point")).transpose()?;
+    let elevation = p.get("elevation").map(|_| f64_req("change", p, "elevation")).transpose()?;
+    if point.is_none() && elevation.is_none() {
+        return Err(bad("change", "`point` or `elevation` is required"));
+    }
     let hs = targets(s, p)?;
     let locked = locked(s, &hs);
     let free: Vec<Handle> = hs.into_iter().filter(|h| !locked.contains(h)).collect();
     let (mut changed, mut ignored, mut differing) = (HashSet::new(), 0, 0);
-    if let Some(q) = p.get("point").and_then(point_value) {
+    if let Some(q) = point {
         let ortho = s.drafting_settings().orthomode;
         for &h in &free {
             let Some(kind) = s.doc()?.entity(h).map(|e| e.kind.clone()) else { continue };
@@ -407,7 +413,7 @@ pub(super) fn run_change(s: &mut Session, p: &Value) -> Result<Value> {
             }
         }
     }
-    if let Some(z) = p.get("elevation").and_then(Value::as_f64).filter(|z| z.is_finite()) {
+    if let Some(z) = elevation {
         let (set, n) = elevate(s, &free, z)?;
         changed.extend(set);
         differing = n;

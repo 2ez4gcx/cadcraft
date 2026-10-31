@@ -226,4 +226,9 @@ fn change_by_json() {
     let r = s.execute("change", &json!({ "handles": [h[0], h[1]], "elevation": 4.0 })).unwrap();
     assert_eq!((r["changed"].as_u64(), r["locked"].as_u64()), (Some(1), Some(1)), "{r}");
     assert_eq!((line(&s, 0)[0][2], line(&s, 1)[0][2]), (4.0, 0.0));
+    // Neither a point nor an elevation, or one that can't be read, is refused.
+    for bad in [json!({ "handles": [h[0]] }), json!({ "handles": [h[0]], "point": "nowhere" }), json!({ "handles": [h[0]], "elevation": "high" })] {
+        assert!(s.execute("change", &bad).is_err(), "{bad}");
+    }
+    assert_eq!(line(&s, 0), [[0.0, 0.0, 4.0], [60.0, 10.0, 4.0]]);
 }
