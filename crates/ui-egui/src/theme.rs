@@ -419,8 +419,21 @@ fn system_ui_candidates() -> &'static [&'static str] {
     }
 }
 
+/// The first of `candidates` that is `installed` and, for the Vietnamese interface, has the
+/// Vietnamese letters: the system interface font [`install_fonts`] loads ahead of egui's faces.
+#[cfg(not(target_arch = "wasm32"))]
+fn ui_font_choice<'a>(
+    candidates: &[&'a str],
+    vietnamese: bool,
+    installed: impl Fn(&str) -> bool,
+    has_vietnamese: impl Fn(&str) -> bool,
+) -> Option<&'a str> {
+    candidates.iter().copied().find(|p| installed(p) && (!vietnamese || has_vietnamese(p)))
+}
+
 /// Whether `face` has every letter Vietnamese adds to Latin: the tone-marked vowels of Latin
 /// Extended Additional (U+1EA0–U+1EF9), and ơ, ư, đ.
+#[cfg(not(target_arch = "wasm32"))]
 fn covers_vietnamese(face: &cadcraft_fonts::ttf::Face) -> bool {
     ('\u{1ea0}'..='\u{1ef9}').chain(['ơ', 'Ơ', 'ư', 'Ư', 'đ', 'Đ']).all(|c| face.has_glyph(c))
 }
@@ -435,16 +448,33 @@ pub fn vietnamese_font() -> Option<&'static std::path::Path> {
         static FOUND: std::sync::OnceLock<Option<std::path::PathBuf>> = std::sync::OnceLock::new();
         FOUND
             .get_or_init(|| {
-                system_ui_candidates().iter().map(std::path::PathBuf::from).find(|p| {
-                    read_capped(p, MAX_UI_FONT_BYTES)
+                let has_vietnamese = |p: &str| {
+                    read_capped(std::path::Path::new(p), MAX_UI_FONT_BYTES)
                         .and_then(|bytes| cadcraft_fonts::ttf::faces(&std::sync::Arc::new(bytes)).into_iter().next())
                         .is_some_and(|face| covers_vietnamese(&face))
-                })
+                };
+                ui_font_choice(system_ui_candidates(), true, |p| std::path::Path::new(p).is_file(), has_vietnamese).map(std::path::PathBuf::from)
             })
             .as_deref()
     }
     #[cfg(target_arch = "wasm32")]
     None
+}
+
+/// Whether the interface in `language` shows the Vietnamese letters (Tiếng Việt in the language
+/// picker): the Vietnamese interface with [`vietnamese_font`], any other when the system interface
+/// font it loads is that one.
+pub fn shows_vietnamese(language: &str) -> bool {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let loaded = || ui_font_choice(system_ui_candidates(), false, |p| std::path::Path::new(p).is_file(), |_| true);
+        vietnamese_font().is_some_and(|v| language == "vi" || loaded().is_some_and(|p| std::path::Path::new(p) == v))
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = language;
+        false
+    }
 }
 
 /// The faces `build.rs` embedded from craft-fonts that the interface loads, in order: every CJK
@@ -777,6 +807,18 @@ pub fn apply(ctx: &egui::Context, theme: Theme, follow_system: bool) {
 
 #[cfg(test)]
 mod tests {
+    /// The system interface font loaded: the first installed one, and for Vietnamese the first
+    /// installed one with its letters (a later one when the first lacks them).
+    #[test]
+    fn the_vietnamese_interface_takes_the_first_installed_font_with_its_letters() {
+        let candidates = ["a.ttf", "b.ttf", "c.ttf", "d.ttf"];
+        let installed = |p: &str| p != "a.ttf";
+        let has_vietnamese = |p: &str| p == "c.ttf" || p == "d.ttf";
+        assert_eq!(super::ui_font_choice(&candidates, false, installed, has_vietnamese), Some("b.ttf"));
+        assert_eq!(super::ui_font_choice(&candidates, true, installed, has_vietnamese), Some("c.ttf"));
+        assert_eq!(super::ui_font_choice(&candidates, true, installed, |_| false), None);
+    }
+
     use cadcraft_fonts::CraftFont;
 
     /// A face shaped like `build.rs` writes them, with no font file (as in `cadcraft-fonts`).

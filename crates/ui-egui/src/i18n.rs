@@ -152,7 +152,7 @@ impl Preference {
             Self::Bosnian => "Bosanski",
             // Its letters need a font egui doesn't bundle ([`crate::theme::vietnamese_font`]).
             Self::Vietnamese => {
-                if crate::theme::can_show("vi") {
+                if crate::theme::shows_vietnamese(CURRENT.with(Cell::get)) {
                     "Tiếng Việt"
                 } else {
                     "Vietnamese"
