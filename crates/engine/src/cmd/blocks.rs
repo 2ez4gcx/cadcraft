@@ -943,8 +943,13 @@ impl Interactive for InsertM {
             // Enter keeps the value typed.
             InsStage::Verify => {
                 let tag = self.verifying().get(self.verified).map(|a| a.0.clone()).unwrap_or_default();
-                if let Input::Text(t) = i {
-                    self.values.insert(tag, Value::String(t));
+                match i {
+                    Input::Text(t) => {
+                        self.values.insert(tag, Value::String(t));
+                    }
+                    Input::Enter => {}
+                    // A click or anything else is no answer: the value is asked for again.
+                    _ => return Ok(Step::Continue),
                 }
                 self.verified += 1;
                 return self.advance(s);

@@ -1,9 +1,10 @@
 //! INSERT's attribute questions as AutoCAD 2024 asks them from AutoLISP's `command` (accoreconsole,
 //! the attributes read back with `entget`).
 
-use cadcraft_engine::Session;
 use cadcraft_engine::cmd::file::{EntityCodec, set_entity_codec};
 use cadcraft_engine::doc::EntityKind;
+use cadcraft_engine::geom::Vec2;
+use cadcraft_engine::{Input, Session};
 
 /// A session with block K: a circle and attributes (tag, DXF flags, default value), each with the
 /// prompt "P" + tag.
@@ -66,6 +67,9 @@ fn a_verify_attribute_is_asked_again_with_the_value_typed() {
     let mut s = with_block(&[("T1", 4, "V1")]);
     s.cmdline("(command \"_.-INSERT\" \"K\" '(300.0 0.0) \"\" \"\" 0 \"X\")").unwrap();
     assert_eq!(said(&s, "Verify attribute values"), 1, "{:?}", s.log);
+    assert!(s.prompt_text().contains("PT1 <X>"), "{}", s.prompt_text());
+    // A click is no answer.
+    s.input(Input::Point(Vec2::new(1.0, 1.0))).unwrap();
     assert!(s.prompt_text().contains("PT1 <X>"), "{}", s.prompt_text());
     // Typed at the prompt, the whole line is the value.
     s.cmdline("Y").unwrap();
