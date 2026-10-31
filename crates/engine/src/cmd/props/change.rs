@@ -13,7 +13,8 @@
 //!   new circle radius <no change>";
 //! - a text is placed by the point (the alignment point of justified text), or asks "Specify new
 //!   text insertion point <no change>"; then "Enter new text style", "Specify new height" (not
-//!   with a style of fixed height), "Specify new rotation angle" and "Enter new text". An
+//!   with a style of fixed height, nor for Aligned text), "Specify new rotation angle" (not for
+//!   Aligned or Fit text, whose two points set it) and "Enter new text". An
 //!   attribute definition asks "Enter new tag", "Enter new prompt" and "Enter new default value" in
 //!   place of the text. A style that does not exist is refused: `Style "5" not defined - use STYLE
 //!   command.`;
@@ -24,10 +25,14 @@
 //!   for Enter;
 //! - other objects (arcs, polylines…) are left alone, and with nothing to change it says "No
 //!   changeable object selected".
+//!
+//! Elev sets the z of lines, 3D polylines and solids whose points share one, and of points,
+//! circles, arcs, ellipses, polylines, hatches (no longer associative: "Hatch boundary
+//! associativity removed."), texts, multiline texts and block references.
 
 use std::collections::{HashSet, VecDeque};
 
-use cadcraft_doc::{Attrib, EntityKind, Handle, Text};
+use cadcraft_doc::{Attrib, EntityKind, HAlign, Handle, Text};
 use cadcraft_geom::{Mat3, Vec2, Vec3};
 use serde_json::{Value, json};
 
@@ -108,14 +113,14 @@ impl ChangeM {
         self.advance(s)
     }
 
-    /// Pass over what needs no answer: say "Change point ignored", and skip the height of a text
-    /// whose style has a fixed one. Done when nothing is left to ask.
+    /// Pass over what needs no answer: say "Change point ignored", and skip what [`skipped`]
+    /// says isn't asked. Done when nothing is left to ask.
     fn advance(&mut self, s: &mut Session) -> Result<Step> {
         let Stage::Asking(asks) = &mut self.stage else { return Ok(Step::Continue) };
         while let Some(&(h, ask)) = asks.front() {
             match ask {
                 Ask::Ignored => s.echo("Change point ignored"),
-                Ask::Height if fixed_height(s, h) => {}
+                a if skipped(s, h, a) => {}
                 _ => return Ok(Step::Continue),
             }
             asks.pop_front();
@@ -161,10 +166,16 @@ fn anchor(kind: &EntityKind) -> Option<Vec2> {
     }
 }
 
-/// Whether `h` is a text whose style has a fixed height (CHANGE does not ask for one then).
-fn fixed_height(s: &Session, h: Handle) -> bool {
+/// Whether CHANGE passes over `ask` for text `h`: the height of a text whose style has a fixed
+/// one or that is Aligned, and the rotation of Aligned or Fit text (their two points set it).
+fn skipped(s: &Session, h: Handle, ask: Ask) -> bool {
     let Ok(d) = s.doc() else { return false };
-    d.entity(h).and_then(|e| text_of(&e.kind)).and_then(|t| d.text_style(&t.style)).is_some_and(|st| st.height > 0.0)
+    let Some(t) = d.entity(h).and_then(|e| text_of(&e.kind)) else { return false };
+    match ask {
+        Ask::Height => t.halign == HAlign::Aligned || d.text_style(&t.style).is_some_and(|st| st.height > 0.0),
+        Ask::Rotation => matches!(t.halign, HAlign::Aligned | HAlign::Fit),
+        _ => false,
+    }
 }
 
 /// Move the end of line `h` nearer `p` to it; under ortho, level or plumb with the other end.
@@ -227,16 +238,22 @@ fn set_rotation(s: &mut Session, h: Handle, angle: f64) -> Result<()> {
 /// Take an answer to `ask` about `h`; `false` when it was refused (the question comes again).
 fn answer(s: &mut Session, h: Handle, ask: Ask, i: Input) -> Result<bool> {
     let at = s.doc()?.entity(h).and_then(|e| anchor(&e.kind)).unwrap_or(Vec2::ZERO);
-    match (ask, i) {
+    match (ask, i.clone()) {
         // Enter keeps what there is.
         (_, Input::Enter) => {}
         (Ask::TextPoint | Ask::BlockPoint, Input::Point(q)) => place(s, h, q)?,
         (Ask::TextPoint | Ask::BlockPoint, _) => return Err(EngineError::Other("Point or option keyword required.".into())),
-        (Ask::Radius | Ask::Height, Input::Point(q)) if q.dist(at) > 0.0 => set_length(s, h, q.dist(at))?,
-        (Ask::Radius | Ask::Height, Input::Text(t)) if number(&t).is_some_and(|v| v > 0.0 && v.is_finite()) => {
-            set_length(s, h, number(&t).unwrap_or(1.0))?;
+        (Ask::Radius | Ask::Height, Input::Point(_) | Input::Text(_)) => {
+            let v = match &i {
+                Input::Point(q) => q.dist(at),
+                Input::Text(t) => number(t).ok_or_else(|| EngineError::Other("Requires numeric distance or second point.".into()))?,
+                _ => 0.0,
+            };
+            if !(v > 0.0 && v.is_finite()) {
+                return Err(EngineError::Other("Value must be positive and nonzero.".into()));
+            }
+            set_length(s, h, v)?;
         }
-        (Ask::Radius | Ask::Height, _) => return Err(EngineError::Other("Value must be positive and nonzero.".into())),
         (Ask::Rotation | Ask::BlockRotation, Input::Point(q)) => set_rotation(s, h, at.angle_to(q))?,
         (Ask::Rotation | Ask::BlockRotation, Input::Text(t)) => {
             let a = s.angle_settings().direction(&t).ok_or_else(|| EngineError::Other("Requires an angle.".into()))?;
@@ -276,7 +293,9 @@ fn ask_prompt(s: &Session, h: Handle, ask: Ask) -> Prompt {
     let kind = d.and_then(|d| d.entity(h)).map(|e| &e.kind);
     let at = kind.and_then(anchor);
     let text = kind.and_then(text_of);
-    let deg = |a: f64| format!("{:.2}", a.to_degrees());
+    // As the drawing shows directions: from ANGBASE in the ANGDIR sense (ANGBASE 90° shows a text
+    // at 0° as 270.00).
+    let deg = |a: f64| format!("{:.2}", s.angle_settings().shown(a).to_degrees());
     match ask {
         Ask::Radius => Prompt::new("Specify new circle radius", Accept::POINT_OR_NUMBER).default("no change").base_opt(at).distance(),
         Ask::TextPoint => Prompt::new("Specify new text insertion point", Accept::POINT).default("no change"),
@@ -311,15 +330,27 @@ fn ask_prompt(s: &Session, h: Handle, ask: Ask) -> Prompt {
     }
 }
 
+/// The one z of `zs`, to rounding; `None` when they differ.
+fn shared_z(zs: impl IntoIterator<Item = f64>) -> Option<f64> {
+    let mut zs = zs.into_iter();
+    let first = zs.next().unwrap_or(0.0);
+    zs.all(|z| (z - first).abs() <= 1e-9 * (1.0 + first.abs())).then_some(first)
+}
+
 /// The elevation of an object Elev sets: `Some(None)` when its points differ in z (a line between
 /// two heights), `None` for the kinds Elev leaves alone.
 pub(super) fn elevation_of(kind: &EntityKind) -> Option<Option<f64>> {
     match kind {
-        EntityKind::Line(l) => Some((l.a.z == l.b.z).then_some(l.a.z)),
+        EntityKind::Line(l) => Some(shared_z([l.a.z, l.b.z])),
+        EntityKind::Polyline3d(p) => Some(shared_z(p.points.iter().map(|q| q.z))),
+        EntityKind::Solid(so) | EntityKind::Trace(so) => Some(shared_z(so.corners.iter().map(|c| c.z))),
         EntityKind::Point(p) => Some(Some(p.p.z)),
         EntityKind::Circle(c) => Some(Some(c.center.z)),
         EntityKind::Arc(a) => Some(Some(a.center.z)),
+        EntityKind::Ellipse(e) => Some(Some(e.center.z)),
         EntityKind::LwPolyline(p) => Some(Some(p.elevation)),
+        EntityKind::Hatch(h) => Some(Some(h.elevation)),
+        EntityKind::MText(t) => Some(Some(t.insert.z)),
         EntityKind::Insert(i) => Some(Some(i.insert.z)),
         k => text_of(k).map(|t| Some(t.insert.z)),
     }
@@ -339,10 +370,18 @@ fn set_elevation(kind: &mut EntityKind, z: f64) {
             set(&mut l.a);
             set(&mut l.b);
         }
+        EntityKind::Polyline3d(p) => p.points.iter_mut().for_each(set),
+        EntityKind::Solid(so) | EntityKind::Trace(so) => so.corners.iter_mut().for_each(set),
         EntityKind::Point(p) => set(&mut p.p),
         EntityKind::Circle(c) => set(&mut c.center),
         EntityKind::Arc(a) => set(&mut a.center),
+        EntityKind::Ellipse(e) => set(&mut e.center),
         EntityKind::LwPolyline(p) => p.elevation = z,
+        EntityKind::Hatch(h) => {
+            h.elevation = z;
+            crate::cmd::hatch::detach(h);
+        }
+        EntityKind::MText(t) => set(&mut t.insert),
         // A block reference's attributes go up with it.
         EntityKind::Insert(i) => {
             let dz = z - i.insert.z;
@@ -363,28 +402,52 @@ fn set_elevation(kind: &mut EntityKind, z: f64) {
     }
 }
 
-/// Set the elevation of the objects among `hs` whose points share one: those set, and how many
-/// differ in z (and keep theirs).
-pub(super) fn elevate(s: &mut Session, hs: &[Handle], z: f64) -> Result<(Vec<Handle>, usize)> {
+/// What [`elevate`] did.
+pub(super) struct Elevated {
+    /// The objects whose elevation was set.
+    pub(super) set: Vec<Handle>,
+    /// Objects whose points differ in z, which keep theirs.
+    pub(super) differing: usize,
+    /// Associative hatches, which no longer are.
+    pub(super) detached: usize,
+}
+
+/// Set the elevation of the objects among `hs` whose points share one.
+pub(super) fn elevate(s: &mut Session, hs: &[Handle], z: f64) -> Result<Elevated> {
     let d = s.doc_mut()?;
-    let (mut set, mut differing) = (Vec::new(), 0);
+    let mut r = Elevated { set: Vec::new(), differing: 0, detached: 0 };
     for &h in hs {
-        match d.entity(h).and_then(|e| elevation_of(&e.kind)) {
+        let Some(e) = d.entity(h) else { continue };
+        match elevation_of(&e.kind) {
             Some(Some(_)) => {
+                r.detached += usize::from(matches!(&e.kind, EntityKind::Hatch(hatch) if hatch.associative));
                 d.modify_entity(h, |e| set_elevation(&mut e.kind, z))?;
-                set.push(h);
+                r.set.push(h);
             }
-            Some(None) => differing += 1,
+            Some(None) => r.differing += 1,
             None => {}
         }
     }
-    Ok((set, differing))
+    Ok(r)
+}
+
+/// Properties ▸ Elev as the command ends: set the elevation, and say what was left alone or
+/// changed besides.
+pub(super) fn elevate_and_say(s: &mut Session, hs: &[Handle], z: f64) -> Result<()> {
+    let r = elevate(s, hs, z)?;
+    if r.differing > 0 {
+        s.echo("Cannot change elevation of objects with differing Z coordinates.");
+    }
+    if r.detached > 0 {
+        s.echo("Hatch boundary associativity removed.");
+    }
+    Ok(())
 }
 
 /// CHANGE's JSON form: `point` changes the objects as the change point does (`ignored`: circles,
 /// texts and block references it leaves alone because others were selected too), `elevation` as
-/// Properties ▸ Elev does (`differingZ`: objects whose points differ in z); objects on locked
-/// layers are left out (`locked`).
+/// Properties ▸ Elev does (`differingZ`: objects whose points differ in z; `detachedHatches`:
+/// associative hatches that no longer are); objects on locked layers are left out (`locked`).
 pub(super) fn run_change(s: &mut Session, p: &Value) -> Result<Value> {
     // A point or an elevation that can't be read is refused, and so is a call with neither.
     let point = p.get("point").map(|_| point_req("change", p, "point")).transpose()?;
@@ -395,7 +458,7 @@ pub(super) fn run_change(s: &mut Session, p: &Value) -> Result<Value> {
     let hs = targets(s, p)?;
     let locked = locked(s, &hs);
     let free: Vec<Handle> = hs.into_iter().filter(|h| !locked.contains(h)).collect();
-    let (mut changed, mut ignored, mut differing) = (HashSet::new(), 0, 0);
+    let (mut changed, mut ignored, mut differing, mut detached) = (HashSet::new(), 0, 0, 0);
     if let Some(q) = point {
         let ortho = s.drafting_settings().orthomode;
         for &h in &free {
@@ -414,11 +477,11 @@ pub(super) fn run_change(s: &mut Session, p: &Value) -> Result<Value> {
         }
     }
     if let Some(z) = elevation {
-        let (set, n) = elevate(s, &free, z)?;
-        changed.extend(set);
-        differing = n;
+        let r = elevate(s, &free, z)?;
+        changed.extend(r.set);
+        (differing, detached) = (r.differing, r.detached);
     }
-    Ok(json!({ "changed": changed.len(), "ignored": ignored, "differingZ": differing, "locked": locked.len() }))
+    Ok(json!({ "changed": changed.len(), "ignored": ignored, "differingZ": differing, "detachedHatches": detached, "locked": locked.len() }))
 }
 
 impl Interactive for ChangeM {

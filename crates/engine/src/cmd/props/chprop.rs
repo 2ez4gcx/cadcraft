@@ -354,10 +354,8 @@ impl Interactive for ChpropM {
         match (ask, i) {
             (Ask::Property, Input::Enter) => {
                 // CHANGE sets the elevation as it ends.
-                if let Some(z) = self.elevation
-                    && super::change::elevate(s, &self.handles, z)?.1 > 0
-                {
-                    s.echo("Cannot change elevation of objects with differing Z coordinates.");
+                if let Some(z) = self.elevation {
+                    super::change::elevate_and_say(s, &self.handles, z)?;
                 }
                 s.set_selection(Vec::new());
                 return Ok(Step::Done);

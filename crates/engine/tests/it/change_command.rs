@@ -232,3 +232,90 @@ fn change_by_json() {
     }
     assert_eq!(line(&s, 0), [[0.0, 0.0, 4.0], [60.0, 10.0, 4.0]]);
 }
+
+/// Elev on the other kinds AutoCAD 2024 sets it for, each alone: the z of a point, a block
+/// reference with its attributes, a multiline text, an ellipse, a solid and a flat 3D polyline;
+/// a 3D polyline between heights keeps them, and a hatch loses its associativity.
+#[test]
+fn elev_sets_the_z_of_every_kind_with_one() {
+    let elev = |made: &str| {
+        let mut s = run(made);
+        s.log.clear();
+        s.cmdline("(command \"_.CHANGE\" (entlast) \"\" \"_P\" \"_E\" 4.0 \"\")").unwrap();
+        let k = s.doc().unwrap().model.iter().last().unwrap().kind.clone();
+        (k, s)
+    };
+    let (k, _) = elev("(entmake '((0 . \"POINT\") (10 5.0 5.0 0.0)))");
+    assert!(matches!(k, EntityKind::Point(p) if p.p.z == 4.0));
+    let (k, _) = elev("(entmake '((0 . \"MTEXT\") (10 0.0 150.0 0.0) (40 . 2.5) (1 . \"AB\")))");
+    assert!(matches!(k, EntityKind::MText(t) if t.insert.z == 4.0));
+    let (k, _) = elev("(entmake '((0 . \"ELLIPSE\") (10 50.0 150.0 0.0) (11 20.0 0.0 0.0) (40 . 0.5) (41 . 0.0) (42 . 6.283185307179586)))");
+    assert!(matches!(k, EntityKind::Ellipse(e) if e.center.z == 4.0));
+    let (k, _) = elev("(entmake '((0 . \"SOLID\") (10 0.0 170.0 0.0) (11 10.0 170.0 0.0) (12 0.0 180.0 0.0) (13 10.0 180.0 0.0)))");
+    assert!(matches!(k, EntityKind::Solid(so) if so.corners.iter().all(|c| c.z == 4.0)));
+    // 3D polylines (made with their z, which a point given to a command doesn't carry).
+    let poly3d = |pts: serde_json::Value| {
+        let mut s = run("");
+        s.execute("3dpoly", &json!({ "points": pts })).unwrap();
+        s.log.clear();
+        s.cmdline("(command \"_.CHANGE\" (entlast) \"\" \"_P\" \"_E\" 4.0 \"\")").unwrap();
+        let EntityKind::Polyline3d(p) = s.doc().unwrap().model.iter().last().unwrap().kind.clone() else { panic!("not a 3D polyline") };
+        (p.points.iter().map(|q| q.z).collect::<Vec<f64>>(), s)
+    };
+    let (zs, _) = poly3d(json!([[0, 220, 2], [10, 220, 2], [20, 230, 2]]));
+    assert_eq!(zs, [4.0, 4.0, 4.0]);
+    let (zs, s) = poly3d(json!([[0, 200, 0], [10, 200, 5], [20, 210, 0]]));
+    assert_eq!(zs, [0.0, 5.0, 0.0]);
+    assert_eq!(said(&s, "Cannot change elevation of objects with differing Z coordinates."), 1, "{:?}", s.log);
+    let (k, _) = elev(&format!("{BLOCK} (command \"_.-INSERT\" \"K\" '(200.0 0.0) \"\" \"\" 0 \"\")"));
+    let EntityKind::Insert(i) = k else { panic!("not a block reference") };
+    assert_eq!((i.insert.z, i.attribs[0].text.insert.z), (4.0, 4.0));
+    // A hatch: its elevation, and no longer associative.
+    let mut s = run("(entmake '((0 . \"LWPOLYLINE\") (90 . 4) (70 . 1) (10 100.0 150.0) (10 120.0 150.0) (10 120.0 170.0) (10 100.0 170.0)))");
+    let poly = s.doc().unwrap().model.iter().last().unwrap().handle.hex();
+    s.execute("hatch", &json!({ "handles": [poly], "associative": true })).unwrap();
+    // The hatch is drawn behind its boundary, so it isn't the last object in the list.
+    let hatch = |s: &Session| {
+        let d = s.doc().unwrap();
+        d.model.iter().find(|e| matches!(e.kind, EntityKind::Hatch(_))).map(|e| (e.handle.hex(), e.kind.clone())).expect("a hatch")
+    };
+    let (hex, k) = hatch(&s);
+    assert!(matches!(&k, EntityKind::Hatch(h) if h.associative));
+    s.log.clear();
+    s.cmdline(&format!("(command \"_.CHANGE\" (handent \"{hex}\") \"\" \"_P\" \"_E\" 4.0 \"\")")).unwrap();
+    let (_, EntityKind::Hatch(h)) = hatch(&s) else { panic!("not a hatch") };
+    assert_eq!((h.elevation, h.associative), (4.0, false));
+    assert_eq!(said(&s, "Hatch boundary associativity removed."), 1, "{:?}", s.log);
+}
+
+#[test]
+fn the_rotation_asked_shows_as_the_drawing_measures_angles() {
+    // ANGBASE 90°: a text at 0° shows as 270.00.
+    let s = run("(setvar \"ANGBASE\" (/ pi 2)) (command \"_.CHANGE\" t \"\" \"\" \"\" \"\" \"\")");
+    assert!(s.prompt_text().contains("Specify new rotation angle <270.00>"), "{}", s.prompt_text());
+}
+
+#[test]
+fn aligned_and_fit_texts_are_set_by_their_two_points() {
+    // Aligned: neither height nor rotation is asked; Fit: no rotation.
+    let s = run(
+        "(entmake '((0 . \"TEXT\") (10 0.0 300.0 0.0) (11 40.0 300.0 0.0) (40 . 2.5) (1 . \"AL\") (72 . 3))) (command \"_.CHANGE\" (entlast) \"\" \"\" \"\" \"\" \"NEW\")",
+    );
+    let t = text(&s, 7);
+    assert_eq!((t.height, t.rotation, t.value.as_str()), (2.5, 0.0, "NEW"));
+    assert!(s.running.is_none(), "{}", s.prompt_text());
+    let s = run(
+        "(entmake '((0 . \"TEXT\") (10 0.0 320.0 0.0) (11 40.0 320.0 0.0) (40 . 2.5) (1 . \"FI\") (72 . 5))) (command \"_.CHANGE\" (entlast) \"\" \"\" \"\" \"\" 5.0 \"FN\")",
+    );
+    let t = text(&s, 7);
+    assert_eq!((t.height, t.rotation, t.value.as_str()), (5.0, 0.0, "FN"));
+    assert!(s.running.is_none(), "{}", s.prompt_text());
+}
+
+#[test]
+fn the_json_point_follows_ortho() {
+    let mut s = run("(setvar \"ORTHOMODE\" 1)");
+    let a = s.doc().unwrap().model.iter().next().unwrap().handle.hex();
+    s.execute("change", &json!({ "handles": [a], "point": [60, 10] })).unwrap();
+    assert_eq!(line(&s, 0)[1], [60.0, 0.0, 0.0]);
+}
