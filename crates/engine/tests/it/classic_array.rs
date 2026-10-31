@@ -186,4 +186,9 @@ fn classic_array_by_json() {
     assert!(same(&points(&s), &[[0.0, 0.0], [10.0, -10.0], [20.0, 0.0], [10.0, 10.0]], 1e-9), "{:?}", points(&s));
     let r = s.execute("-array", &json!({ "handles": [first], "rows": 2, "cols": 3, "rowSpacing": 5, "colSpacing": 7 })).unwrap();
     assert_eq!(r["created"].as_u64(), Some(5), "{r}");
+    // An unknown type, or an array past MAXARRAY, is refused before anything is made.
+    assert!(s.execute("-array", &json!({ "handles": [first], "type": "path" })).is_err());
+    assert!(s.execute("-array", &json!({ "handles": [first], "rows": 4294967296u64, "cols": 4294967296u64 })).is_err());
+    assert!(s.execute("-array", &json!({ "handles": [first], "type": "polar", "center": [0, 0], "count": u64::MAX })).is_err());
+    assert_eq!(s.doc().unwrap().model.iter().count(), 4 + 5);
 }

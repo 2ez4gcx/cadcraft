@@ -19,7 +19,7 @@ use cadcraft_geom::{Mat3, Vec2};
 use serde_json::{Value, json};
 
 use super::super::machines::{SelOutcome, SelectPhase, number};
-use super::super::{bool_or, f64_or, point_param, point_req, str_param, targets};
+use super::super::{bad, bool_or, f64_or, point_param, point_req, str_param, targets};
 use super::{KEYWORDS, angle, check_size, copy_all, count, count_or, max_count, other, yes_no};
 use crate::{Accept, Input, Interactive, Prompt, Result, Session, Step};
 
@@ -88,17 +88,24 @@ fn last_point(s: &Session, hs: &[Handle]) -> Option<Vec2> {
 /// -ARRAY's JSON form.
 pub(super) fn run_classic(s: &mut Session, p: &Value) -> Result<Value> {
     let hs = targets(s, p)?;
-    let mats = if str_param(p, "type").is_some_and(|t| t.eq_ignore_ascii_case("polar")) {
+    let polar = match str_param(p, "type").map(str::to_ascii_lowercase).as_deref() {
+        None | Some("rectangular") => false,
+        Some("polar") => true,
+        Some(_) => return Err(bad("-array", "type must be \"rectangular\" or \"polar\"")),
+    };
+    // The size is checked before the copies' transforms are made.
+    let mats = if polar {
         let center = point_req("-array", p, "center")?;
         let items = count_or("-array", p, "count", 1)?;
+        check_size(s, items, hs.len())?;
         let base = point_param(p, "base").or_else(|| last_point(s, &hs)).unwrap_or(center);
         polar_mats(center, items, f64_or(p, "angle", 360.0), bool_or(p, "rotate", true), base)
     } else {
         let rows = count_or("-array", p, "rows", 1)?;
         let columns = count_or("-array", p, "cols", 1)?;
+        check_size(s, rows.saturating_mul(columns), hs.len())?;
         rect_mats(rows, columns, f64_or(p, "rowSpacing", 0.0), f64_or(p, "colSpacing", 0.0))
     };
-    check_size(s, mats.len() as u64 + 1, hs.len())?;
     let created = copy_all(s, &hs, mats.into_iter())?;
     Ok(json!({ "created": created }))
 }
@@ -190,8 +197,9 @@ impl Interactive for ClassicM {
                     self.stage = Stage::Columns;
                 }
             }
+            // No more columns than MAXARRAY allows with the rows.
             (Stage::Columns, i) => {
-                if let Some(n) = count(&i, 1, max)? {
+                if let Some(n) = count(&i, 1, max_count(s, self.rows, self.objs.len()))? {
                     self.columns = n;
                     return self.after_counts(s);
                 }
