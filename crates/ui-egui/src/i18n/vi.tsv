@@ -43,7 +43,7 @@
 	3 Viewports	3 khung nhìn
 	3D Face	Mặt 3D
 	3D Operations	Thao tác 3D
-	3D Polyline	Đa tuyến 3D
+	3D Polyline	Polyline 3D
 	4 Viewports	4 khung nhìn
 	< Less than	< Nhỏ hơn
 	<> Not Equal	<> Không bằng
@@ -53,7 +53,7 @@
 	About	Giới thiệu
 	About CADCraft	Giới thiệu CADCraft
 	Absolute	Tuyệt đối
-	Add Leader	Thêm đường dẫn chú thích
+	Add Leader	Thêm đường dẫn ghi chú
 	Additional angles	Các góc bổ sung
 	Align	Căn chỉnh
 	Align Text	Căn chỉnh chữ
@@ -74,12 +74,12 @@
 	Arc Length	Chiều dài cung
 	Area	Diện tích
 	Arrange Panel	Sắp xếp bảng
-	Array	Mảng
+	Array	Sao chép theo dãy
 	Attach	Đính kèm
 	Attribute	Attribute
 	Attribute Definition	Định nghĩa attribute
 	Attribute Display	Hiển thị attribute
-	Audit	Kiểm tra
+	Audit	Kiểm tra lỗi
 	Auto (system language)	Tự động (ngôn ngữ hệ thống)
 	Auto Constrain	Ràng buộc tự động
 	AutoConstrain	AutoConstrain
@@ -165,7 +165,7 @@
 	Concentric	Đồng tâm
 	Cone	Hình nón
 	Constraint Bars	Thanh ràng buộc
-	Constraint Settings	Thiết lập ràng buộc
+	Constraint Settings	Cài đặt ràng buộc
 	Construction Line	Đường dựng
 	Contents	Nội dung
 	Continue	Tiếp tục
@@ -244,8 +244,8 @@
 	Double-click to edit the description	Nhấp đúp để sửa mô tả
 	Down	Xuống
 	Drafting	Vẽ kỹ thuật
-	Drafting Settings	Thiết lập vẽ kỹ thuật
-	Drafting Settings...	Thiết lập vẽ kỹ thuật...
+	Drafting Settings	Cài đặt hỗ trợ vẽ
+	Drafting Settings...	Cài đặt hỗ trợ vẽ...
 	Draw	Vẽ
 	Draw Order	Thứ tự vẽ
 	Drawing (DWG)	Bản vẽ (DWG)
@@ -272,7 +272,7 @@
 	End X	Điểm cuối X
 	End Y	Điểm cuối Y
 	End angle	Góc cuối
-	Endpoint	Điểm cuối
+	Endpoint	Đầu mút
 	Enter	Enter
 	Enter Top, Zero or Bottom.	Nhập Top, Zero hoặc Bottom.
 	Enter a fit data option	Nhập tùy chọn dữ liệu khớp
@@ -297,7 +297,7 @@
 	Enter dimension value or [name=expression]	Nhập giá trị kích thước hoặc [name=expression]
 	Enter dimension variable name to override	Nhập tên biến kích thước để ghi đè
 	Enter justification type	Nhập kiểu căn lề
-	Enter leader text	Nhập chữ đường dẫn chú thích
+	Enter leader text	Nhập chữ đường dẫn ghi chú
 	Enter mline scale	Nhập tỉ lệ mline
 	Enter mode	Nhập chế độ
 	Enter name of block to insert	Nhập tên block cần chèn
@@ -322,7 +322,7 @@
 	Erase	Xóa
 	Evaluate	Tính giá trị
 	Exclude from new selection set	Loại khỏi tập chọn mới
-	Explode	Phá khối
+	Explode	Phân rã
 	Export	Xuất
 	Export Table	Xuất bảng
 	Export to PDF...	Xuất ra PDF...
@@ -451,8 +451,8 @@
 	Layer Merge	Gộp layer
 	Layer Off	Tắt layer
 	Layer Properties	Thuộc tính layer
-	Layer Properties Manager	Trình quản lý thuộc tính layer
-	Layer Properties Manager — current viewport	Trình quản lý thuộc tính layer — khung nhìn hiện hành
+	Layer Properties Manager	Quản lý layer
+	Layer Properties Manager — current viewport	Quản lý layer — khung nhìn hiện hành
 	Layer State	Trạng thái layer
 	Layer States Manager...	Trình quản lý trạng thái layer...
 	Layer Tools	Công cụ layer
@@ -464,26 +464,26 @@
 	Layers displayed: {shown} of {total}.   Current layer: {layer}	Đang hiển thị {shown} trên {total} layer.   Layer hiện hành: {layer}
 	Layout	Layout
 	Layout list	Danh sách layout
-	Leader	Đường dẫn chú thích
-	Leaders Only	Chỉ đường dẫn chú thích
+	Leader	Đường dẫn ghi chú
+	Leaders Only	Chỉ đường dẫn ghi chú
 	Left	Trái
 	Length	Chiều dài
 	Length X	Chiều dài X
 	Length Y	Chiều dài Y
 	Lengthen	Đổi chiều dài
 	Light	Sáng
-	Line	Đường thẳng
+	Line	Đoạn thẳng
 	Line delta	Chênh lệch dòng
 	Linear	Tuyến tính
 	Lines +/−	Dòng +/−
 	Lines added	Dòng đã thêm
 	Lines deleted	Dòng đã xóa
 	Lines of Command History	Số dòng lịch sử lệnh
-	Linetype	Kiểu nét
-	Linetype Scale	Tỉ lệ kiểu nét
-	Linetype scale	Tỉ lệ kiểu nét
+	Linetype	Loại nét
+	Linetype Scale	Tỉ lệ loại nét
+	Linetype scale	Tỉ lệ loại nét
 	Ltscale	Ltscale
-	Linetype...	Kiểu nét...
+	Linetype...	Loại nét...
 	Lineweight	Bề dày nét
 	Lineweight...	Bề dày nét...
 	List	Liệt kê
@@ -496,7 +496,7 @@
 	List Text Styles	Liệt kê kiểu chữ
 	Load all	Tải tất cả
 	Load...	Tải...
-	Loaded linetypes	Kiểu nét đã tải
+	Loaded linetypes	Loại nét đã tải
 	Lock	Khóa
 	Lock Layer	Khóa layer
 	Lock viewport	Khóa khung nhìn
@@ -511,20 +511,20 @@
 	Make Object's Layer Current	Đặt layer của đối tượng làm hiện hành
 	Make...	Tạo...
 	Match Layer	Khớp layer
-	Match Properties	Khớp thuộc tính
+	Match Properties	Sao chép thuộc tính
 	Measure	Đo
 	Measure Distance	Đo khoảng cách
 	Measure Geometry	Đo hình học
 	Merge Cells	Gộp ô
 	Merged PRs	PR đã gộp
 	Mid Between 2 Points	Điểm giữa 2 điểm
-	Midpoint	Trung điểm
-	Mirror	Đối xứng
+	Midpoint	Điểm giữa
+	Mirror	Lấy đối xứng
 	Model	Model
 	Model Space (in viewport)	Không gian mô hình (trong khung nhìn)
 	Modeling	Mô hình hóa
 	Models	Model
-	Modify	Biến đổi
+	Modify	Hiệu chỉnh
 	Move	Di chuyển
 	Multileader	Multileader
 	Multileader Style...	Kiểu multileader...
@@ -541,7 +541,7 @@
 	Name (A–Z)	Tên (A–Z)
 	Named Viewports...	Khung nhìn đã đặt tên...
 	Named Views...	Góc nhìn đã đặt tên...
-	Nearest	Gần nhất
+	Nearest	Điểm gần nhất
 	New	Mới
 	New (metric)	Mới (hệ mét)
 	New Drawing	Bản vẽ mới
@@ -572,9 +572,9 @@
 	Object Snap	Bắt điểm
 	Object Snap (F3)	Bắt điểm (F3)
 	Object Snap On (F3)	Bật bắt điểm (F3)
-	Object Snap Tracking	Theo dõi bắt điểm
-	Object Snap Tracking (F11)	Theo dõi bắt điểm (F11)
-	Object Snap Tracking Settings	Thiết lập theo dõi bắt điểm
+	Object Snap Tracking	Dò theo điểm bắt
+	Object Snap Tracking (F11)	Dò theo điểm bắt (F11)
+	Object Snap Tracking Settings	Cài đặt dò theo điểm bắt
 	Object type:	Loại đối tượng:
 	Oblique	Nghiêng
 	Off	Tắt
@@ -595,7 +595,7 @@
 	Ortho (F8)	Ortho (F8)
 	Ortho Mode	Chế độ Ortho
 	Ortho Mode (F8)	Chế độ Ortho (F8)
-	Osnap Settings...	Thiết lập bắt điểm...
+	Osnap Settings...	Cài đặt bắt điểm...
 	Out	Thu nhỏ
 	Over-constrained	Thừa ràng buộc
 	Override	Ghi đè
@@ -605,11 +605,11 @@
 	PRs	PR
 	Page Setup Manager	Trình quản lý thiết lập trang
 	Page Setup Manager...	Trình quản lý thiết lập trang...
-	Pan	Kéo nhìn
-	Pan Down	Kéo nhìn xuống
-	Pan Left	Kéo nhìn sang trái
-	Pan Right	Kéo nhìn sang phải
-	Pan Up	Kéo nhìn lên
+	Pan	Pan
+	Pan Down	Pan xuống
+	Pan Left	Pan sang trái
+	Pan Right	Pan sang phải
+	Pan Up	Pan lên
 	Paper Space	Không gian giấy
 	Parallel	Song song
 	Parameters Manager	Trình quản lý tham số
@@ -627,7 +627,7 @@
 	Plot Window	Cửa sổ in
 	Plot style	Kiểu in
 	Plot style attached to	Kiểu in được gắn vào
-	Plot style table	Bảng bút in
+	Plot style table	Bảng nét in
 	Plot Style...	Kiểu in...
 	Plot Style Manager	Trình quản lý kiểu in
 	Plot Style Manager...	Trình quản lý kiểu in...
@@ -643,28 +643,28 @@
 	Text Objects Only	Chỉ đối tượng chữ
 	Use for this layout	Dùng cho layout này
 	Display plot styles	Hiển thị kiểu in
-	No plot style tables.	Không có bảng bút in nào.
+	No plot style tables.	Không có bảng nét in nào.
 	A built-in table: editing it keeps an edited copy in the drawing.	Bảng dựng sẵn: khi chỉnh sửa, một bản sao đã sửa sẽ được giữ trong bản vẽ.
 	Keep an editable copy of this table in the drawing	Giữ một bản sao có thể chỉnh sửa của bảng này trong bản vẽ
 	Layout {name}: {table}	Layout {name}: {table}
 	Grayscale	Thang xám
 	Screening	Tỉ lệ phủ
-	Use object linetype	Dùng kiểu nét của đối tượng
+	Use object linetype	Dùng loại nét của đối tượng
 	Use object lineweight	Dùng bề dày nét của đối tượng
 	Remove	Gỡ bỏ
 	Add	Thêm
 	Open a drawing first.	Hãy mở một bản vẽ trước.
-	Plot table type	Loại bảng bút in
+	Plot table type	Loại bảng nét in
 	Color-dependent	Phụ thuộc màu
 	Named	Theo tên
 	Plus/minus	Cộng/trừ
 	Point	Điểm
 	Point Filters	Bộ lọc điểm
 	Point Style...	Kiểu điểm...
-	Polar Array	Mảng cực
-	Polar Tracking	Theo dõi cực
-	Polar Tracking (F10)	Theo dõi cực (F10)
-	Polar Tracking On (F10)	Bật theo dõi cực (F10)
+	Polar Array	Mảng tròn
+	Polar Tracking	Dò theo góc
+	Polar Tracking (F10)	Dò theo góc (F10)
+	Polar Tracking On (F10)	Bật dò theo góc (F10)
 	Polar angle measurement	Đo góc cực
 	Polar distance	Khoảng cách cực
 	Polar: {distance} < {angle}°	Cực: {distance} < {angle}°
@@ -672,8 +672,8 @@
 	Polygon	Đa giác
 	Polygonal	Đa giác
 	Polygonal Viewport	Khung nhìn đa giác
-	Polyline	Đa tuyến
-	Polyline Edit	Chỉnh sửa đa tuyến
+	Polyline	Polyline
+	Polyline Edit	Chỉnh sửa polyline
 	Position X	Vị trí X
 	Position Y	Vị trí Y
 	Position Z	Vị trí Z
@@ -715,19 +715,19 @@
 	Recalculate Table Formulas	Tính lại công thức bảng
 	Rectangular	Hình chữ nhật
 	Rectangular snap	Snap hình chữ nhật
-	Rectangular Array	Mảng hình chữ nhật
+	Rectangular Array	Mảng chữ nhật
 	Red	Đỏ
 	Redo	Làm lại
 	Redo (⇧⌘Z)	Làm lại (⇧⌘Z)
 	Redraw	Vẽ lại
-	Regen	Tái tạo
-	Regen All	Tái tạo tất cả
+	Regen	Tái tạo hình
+	Regen All	Tái tạo hình toàn bộ
 	Region	Miền
 	Region/Mass Properties	Thuộc tính miền/khối
 	Reinitialize	Khởi tạo lại
 	Relative	Tương đối
 	Relative to last segment	Tương đối với đoạn cuối
-	Remove Leader	Xóa đường dẫn chú thích
+	Remove Leader	Xóa đường dẫn ghi chú
 	Remove the viewport override	Xóa ghi đè khung nhìn
 	Rename Dimension Style	Đổi tên kiểu kích thước
 	Rename Layer	Đổi tên layer
@@ -760,27 +760,27 @@
 	Search for parameter	Tìm tham số
 	Second and next points:	Điểm thứ hai và các điểm tiếp theo:
 	Select	Chọn
-	Select 2D polyline	Chọn đa tuyến 2D
+	Select 2D polyline	Chọn polyline 2D
 	Select All	Chọn tất cả
 	Select Objects	Chọn đối tượng
 	Select Similar	Chọn tương tự
-	Select a 2D polyline.	Chọn một đa tuyến 2D.
+	Select a 2D polyline.	Chọn một polyline 2D.
 	Select a block reference.	Chọn một tham chiếu block.
 	Select a circle or arc.	Chọn một đường tròn hoặc cung tròn.
-	Select a closed polyline	Chọn một đa tuyến kín
-	Select a closed polyline, circle, ellipse or closed spline.	Chọn một đa tuyến kín, đường tròn, elip hoặc spline kín.
-	Select a closed polyline.	Chọn một đa tuyến kín.
+	Select a closed polyline	Chọn một polyline kín
+	Select a closed polyline, circle, ellipse or closed spline.	Chọn một polyline kín, đường tròn, elip hoặc spline kín.
+	Select a closed polyline.	Chọn một polyline kín.
 	Select a curve as the path.	Chọn một đường cong làm đường dẫn.
 	Select a dimension constraint type	Chọn kiểu ràng buộc kích thước
-	Select a line object	Chọn một đối tượng đường thẳng
-	Select a line object.	Chọn một đối tượng đường thẳng.
-	Select a line or an arc.	Chọn một đường thẳng hoặc cung tròn.
-	Select a line or polyline segment	Chọn một đoạn đường thẳng hoặc đa tuyến
-	Select a line, arc or open polyline.	Chọn một đường thẳng, cung tròn hoặc đa tuyến hở.
-	Select a line, arc, circle, polyline, ellipse or spline as the path.	Chọn một đường thẳng, cung tròn, đường tròn, đa tuyến, elip hoặc spline làm đường dẫn.
-	Select a line, circle, arc or polyline segment.	Chọn một đoạn đường thẳng, đường tròn, cung tròn hoặc đa tuyến.
-	Select a line.	Chọn một đường thẳng.
-	Select a polyline.	Chọn một đa tuyến.
+	Select a line object	Chọn một đoạn thẳng
+	Select a line object.	Chọn một đoạn thẳng.
+	Select a line or an arc.	Chọn một đoạn thẳng hoặc cung tròn.
+	Select a line or polyline segment	Chọn một đoạn thẳng hoặc một đoạn của polyline
+	Select a line, arc or open polyline.	Chọn một đoạn thẳng, cung tròn hoặc polyline hở.
+	Select a line, arc, circle, polyline, ellipse or spline as the path.	Chọn một đoạn thẳng, cung tròn, đường tròn, polyline, elip hoặc spline làm đường dẫn.
+	Select a line, circle, arc or polyline segment.	Chọn một đoạn thẳng, đường tròn, cung tròn hoặc một đoạn của polyline.
+	Select a line.	Chọn một đoạn thẳng.
+	Select a polyline.	Chọn một polyline.
 	Select a text, mtext, attribute definition or dimension.	Chọn một chữ, chữ nhiều dòng, định nghĩa attribute hoặc kích thước.
 	Select an annotation object	Chọn một đối tượng chú thích
 	Select an arc or circle	Chọn một cung tròn hoặc đường tròn
@@ -790,16 +790,16 @@
 	Select an object to measure or	Chọn một đối tượng để đo hoặc
 	Select an object.	Chọn một đối tượng.
 	Select an open curve.	Chọn một đường cong hở.
-	Select an open line, arc, polyline, ellipse arc or spline.	Chọn một đường thẳng, cung tròn, đa tuyến, cung elip hoặc spline hở.
+	Select an open line, arc, polyline, ellipse arc or spline.	Chọn một đoạn thẳng, cung tròn, polyline, cung elip hoặc spline hở.
 	Select arc or circle	Chọn cung hoặc đường tròn
-	Select arc or polyline arc segment	Chọn cung hoặc đoạn cung của đa tuyến
+	Select arc or polyline arc segment	Chọn cung hoặc đoạn cung của polyline
 	Select arc style	Chọn kiểu cung
-	Select arc, circle, line	Chọn cung, đường tròn, đường thẳng
+	Select arc, circle, line	Chọn cung, đường tròn, đoạn thẳng
 	Select at least two objects to join.	Chọn ít nhất hai đối tượng để nối.
 	Select circle or arc to add center mark	Chọn đường tròn hoặc cung tròn để thêm dấu tâm
-	Select closed objects (regions, closed polylines, circles).	Chọn đối tượng kín (miền, đa tuyến kín, đường tròn).
-	Select first line	Chọn đường thẳng thứ nhất
-	Select first line or arc	Chọn đường thẳng hoặc cung tròn thứ nhất
+	Select closed objects (regions, closed polylines, circles).	Chọn đối tượng kín (miền, polyline kín, đường tròn).
+	Select first line	Chọn đoạn thẳng thứ nhất
+	Select first line or arc	Chọn đoạn thẳng hoặc cung tròn thứ nhất
 	Select first object	Chọn đối tượng thứ nhất
 	Select first object or	Chọn đối tượng thứ nhất hoặc
 	Select first point	Chọn điểm thứ nhất
@@ -821,12 +821,12 @@
 	Select objects to array.	Chọn đối tượng để tạo mảng.
 	Select objects to stretch by crossing-window or crossing-polygon...	Chọn đối tượng để kéo giãn bằng cửa sổ cắt hoặc đa giác cắt...
 	Select objects:	Chọn đối tượng:
-	Select one polyline (Multiple is available through the JSON form).	Chọn một đa tuyến (có thể chọn nhiều qua dạng JSON).
+	Select one polyline (Multiple is available through the JSON form).	Chọn một polyline (có thể chọn nhiều qua dạng JSON).
 	Select path curve	Chọn đường cong làm đường dẫn
 	Select point or object	Chọn điểm hoặc đối tượng
-	Select polyline or	Chọn đa tuyến hoặc
-	Select second line	Chọn đường thẳng thứ hai
-	Select second line or shift-select to apply corner	Chọn đường thẳng thứ hai hoặc chọn kèm Shift để áp dụng góc
+	Select polyline or	Chọn polyline hoặc
+	Select second line	Chọn đoạn thẳng thứ hai
+	Select second line or shift-select to apply corner	Chọn đoạn thẳng thứ hai hoặc chọn kèm Shift để áp dụng góc
 	Select second object	Chọn đối tượng thứ hai
 	Select second object or shift-select to apply corner	Chọn đối tượng thứ hai hoặc chọn kèm Shift để áp dụng góc
 	Select second point	Chọn điểm thứ hai
@@ -883,7 +883,7 @@
 	Specify base diameter	Chỉ định đường kính đáy
 	Specify base point	Chỉ định điểm gốc
 	Specify base point or	Chỉ định điểm gốc hoặc
-	Specify base point or displacement (drag with the middle mouse button for realtime pan)	Chỉ định điểm gốc hoặc độ dời (kéo bằng nút giữa chuột để kéo nhìn theo thời gian thực)
+	Specify base point or displacement (drag with the middle mouse button for realtime pan)	Chỉ định điểm gốc hoặc độ dời (kéo bằng nút giữa chuột để pan theo thời gian thực)
 	Specify base radius or	Chỉ định bán kính đáy hoặc
 	Specify center of donut	Chỉ định tâm vành tròn
 	Specify center of ellipse	Chỉ định tâm elip
@@ -906,7 +906,7 @@
 	Specify ending width for next segment	Chỉ định bề rộng cuối cho đoạn tiếp theo
 	Specify endpoint of arc	Chỉ định điểm cuối của cung
 	Specify endpoint of axis	Chỉ định điểm cuối của trục
-	Specify endpoint of line	Chỉ định điểm cuối của đường thẳng
+	Specify endpoint of line	Chỉ định điểm cuối của đoạn thẳng
 	Specify feature location	Chỉ định vị trí đặc trưng
 	Specify fillet radius	Chỉ định bán kính bo góc
 	Specify fillet radius for rectangles	Chỉ định bán kính bo góc cho hình chữ nhật
@@ -959,16 +959,16 @@
 	Screen magnifiers, screen readers and recorders follow the system cursor.	Kính lúp màn hình, trình đọc màn hình và phần mềm ghi màn hình đi theo con trỏ hệ thống.
 	Select objects first, then choose a command	Chọn đối tượng trước, rồi chọn lệnh
 	Selection	Lựa chọn
-	Settings...	Thiết lập...
+	Settings...	Cài đặt...
 	Show Quick Properties for selected objects	Hiển thị thuộc tính nhanh cho đối tượng đã chọn
-	Snap, grid, polar tracking and Dynamic Input:	Snap, lưới, theo dõi cực và Dynamic input:
+	Snap, grid, polar tracking and Dynamic Input:	Snap, lưới, dò theo góc và Dynamic input:
 	The aperture is how near the cursor must come to a point for an object snap to find it.	Khẩu độ là khoảng cách con trỏ cần tiến gần đến một điểm để bắt điểm đối tượng tìm thấy điểm đó.
 	User Preferences	Tùy chọn người dùng
 	objects	đối tượng
 	Specify inside diameter of donut	Chỉ định đường kính trong của vành tròn
-	Specify leader arrowhead location	Chỉ định vị trí mũi tên của đường dẫn chú thích
-	Specify leader endpoint	Chỉ định điểm cuối của đường dẫn chú thích
-	Specify leader landing location	Chỉ định vị trí đoạn ngang của đường dẫn chú thích
+	Specify leader arrowhead location	Chỉ định vị trí mũi tên của đường dẫn ghi chú
+	Specify leader endpoint	Chỉ định điểm cuối của đường dẫn ghi chú
+	Specify leader landing location	Chỉ định vị trí đoạn ngang của đường dẫn ghi chú
 	Specify length for rectangles	Chỉ định chiều dài cho hình chữ nhật
 	Specify length of chord	Chỉ định độ dài dây cung
 	Specify length of segment	Chỉ định chiều dài đoạn
@@ -1014,7 +1014,7 @@
 	Specify start angle	Chỉ định góc bắt đầu
 	Specify start point	Chỉ định điểm bắt đầu
 	Specify start point of arc	Chỉ định điểm bắt đầu của cung
-	Specify start point of polyline	Chỉ định điểm bắt đầu của đa tuyến
+	Specify start point of polyline	Chỉ định điểm bắt đầu của polyline
 	Specify start point of text	Chỉ định điểm bắt đầu của chữ
 	Specify starting width	Chỉ định bề rộng bắt đầu
 	Specify starting width for next segment	Chỉ định bề rộng bắt đầu cho đoạn tiếp theo
@@ -1070,7 +1070,7 @@
 	Tan, Tan, Radius	Tiếp tuyến, tiếp tuyến, bán kính
 	Tan, Tan, Tan	Tiếp tuyến, tiếp tuyến, tiếp tuyến
 	Tangent	Tiếp tuyến
-	Temporary track point	Điểm theo dõi tạm thời
+	Temporary track point	Điểm dò tạm thời
 	Text	Chữ
 	Text Editor	Trình soạn thảo chữ
 	Text Height	Chiều cao chữ
@@ -1089,8 +1089,8 @@
 	Tools	Công cụ
 	Torus	Xuyến
 	Trace	Nét rộng
-	Track orthogonally only	Chỉ theo dõi trực giao
-	Track using all polar angle settings	Theo dõi theo tất cả thiết lập góc cực
+	Track orthogonally only	Chỉ dò theo phương ngang và dọc
+	Track using all polar angle settings	Dò theo mọi góc cực đã đặt
 	Transparency	Độ trong suốt
 	Trim	Cắt xén
 	True Color	Màu thực
@@ -1116,7 +1116,7 @@
 	Up	Lên
 	Update Data Links	Cập nhật liên kết dữ liệu
 	Update	Cập nhật
-	Use System Setting	Dùng thiết lập hệ thống
+	Use System Setting	Dùng cài đặt hệ thống
 	User	Người dùng
 	User Parameters	Tham số người dùng
 	Username	Tên người dùng
@@ -1204,7 +1204,7 @@
 	Add Vertex	Thêm đỉnh
 	Remove Vertex	Xóa đỉnh
 	Convert to Arc	Chuyển thành cung tròn
-	Convert to Line	Chuyển thành đường thẳng
+	Convert to Line	Chuyển thành đoạn thẳng
 	Stretch Vertex	Kéo giãn đỉnh
 	Edit Array	Sửa mảng
 	Close Array Editing	Đóng chỉnh sửa mảng
@@ -1219,7 +1219,7 @@
 menu	View	Xem
 menu	Draw	Vẽ
 menu	Dimension	Kích thước
-menu	Modify	Biến đổi
+menu	Modify	Hiệu chỉnh
 	Hatch Pattern	Mẫu hatch
 	Search for pattern	Tìm mẫu
 	Not a number or distance: {text}	Không phải số hoặc khoảng cách: {text}
@@ -1245,9 +1245,9 @@ menu	Modify	Biến đổi
 	Drawings with no file yet are saved in the default version. 0 minutes turns automatic save off.	Bản vẽ chưa có tệp sẽ được lưu theo phiên bản mặc định. 0 phút sẽ tắt tự động lưu.
 	Enable 3D mouse navigation	Bật điều hướng chuột 3D
 	Left device button: zoom extents. Right device button: calibrate.	Nút trái của thiết bị: thu phóng toàn bộ. Nút phải của thiết bị: hiệu chỉnh.
-	Move sideways to pan; push/pull or twist to zoom.	Di chuyển ngang để kéo nhìn; đẩy/kéo hoặc xoay để thu phóng.
+	Move sideways to pan; push/pull or twist to zoom.	Di chuyển ngang để pan; đẩy/kéo hoặc xoay để thu phóng.
 	No supported 3D mouse found	Không tìm thấy chuột 3D được hỗ trợ
-	Pan sensitivity	Độ nhạy kéo nhìn
+	Pan sensitivity	Độ nhạy pan
 	Release the 3D mouse to calibrate its resting position	Thả chuột 3D để hiệu chỉnh vị trí nghỉ của nó
 	Reverse zoom direction	Đảo chiều thu phóng
 	Run Script...	Chạy script...
@@ -1337,8 +1337,8 @@ menu	Modify	Biến đổi
 	Top right	Trên phải
 	Unsaved changes	Thay đổi chưa lưu
 	Use current origin	Dùng gốc hiện hành
-	Visual Effect Settings	Thiết lập hiệu ứng hình ảnh
-	Visual Effect Settings...	Thiết lập hiệu ứng hình ảnh...
+	Visual Effect Settings	Cài đặt hiệu ứng hình ảnh
+	Visual Effect Settings...	Cài đặt hiệu ứng hình ảnh...
 	When a command is active	Khi có lệnh đang hoạt động
 	When no command is active	Khi không có lệnh nào đang hoạt động
 	Window selection color:	Màu vùng chọn cửa sổ:
@@ -1348,7 +1348,7 @@ menu	Modify	Biến đổi
 	Precision	Độ chính xác
 	Break-line Symbol	Ký hiệu ngắt đường
 	Convert Text to Mtext	Chuyển chữ một dòng thành chữ nhiều dòng
-	Explode Attributes to Text	Phá attribute thành chữ
+	Explode Attributes to Text	Phân rã attribute thành chữ
 	Express Tools	Express Tools
 	Move/Copy/Rotate	Di chuyển/Sao chép/Xoay
 	Type an alias name.	Nhập tên bí danh.
