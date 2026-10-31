@@ -25,6 +25,8 @@ pub struct LastUsed {
     pub mleader_block: String,
     /// BREAKLINE's Block, Size and Extension.
     pub breakline: cmd::BreaklineOptions,
+    /// -ARRAY's type: Polar instead of Rectangular.
+    pub classic_array_polar: bool,
 }
 
 impl Default for LastUsed {
@@ -39,6 +41,7 @@ impl Default for LastUsed {
             mleader: MLeaderOptions::default(),
             mleader_block: String::new(),
             breakline: cmd::BreaklineOptions::default(),
+            classic_array_polar: false,
         }
     }
 }
