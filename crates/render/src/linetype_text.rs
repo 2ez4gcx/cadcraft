@@ -35,7 +35,7 @@ struct Element {
 
 /// The texts of `lt` along the polyline `pts`, in the coordinates of `pts`. Empty when the
 /// linetype has no text or its scaled pattern is drawn continuous (shorter than `min_pattern`,
-/// or repeating too often).
+/// or, in a display build, repeating too often: see [`crate::linetype::phase`]).
 pub fn texts(d: &Drawing, pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Vec<Shaped> {
     let mut out = Vec::new();
     if pts.len() < 2 || !lt.pattern.iter().any(|e| e.text.as_deref().is_some_and(|t| !t.trim().is_empty())) {
@@ -44,7 +44,7 @@ pub fn texts(d: &Drawing, pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: 
     let scale = if scale.is_finite() && scale > 0.0 { scale } else { 1.0 };
     let total = lt.pattern_length() * scale;
     let len: f64 = pts.windows(2).map(|w| w.first().zip(w.get(1)).map(|(a, b)| a.dist(*b)).unwrap_or(0.0)).sum();
-    if !(total.is_finite() && total > 1e-12 && len.is_finite()) || total < min_pattern || len / total > 50_000.0 {
+    if !(total.is_finite() && total > 1e-12 && len.is_finite()) || total < min_pattern {
         return out;
     }
     let elements = elements(d, lt, scale);

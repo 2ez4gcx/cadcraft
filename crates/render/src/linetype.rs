@@ -29,7 +29,9 @@ pub enum Layout {
     Closed { anchor: f64 },
 }
 
-/// Most periods a run is dashed over; a longer run is drawn continuous.
+/// Most periods a run is dashed over in a display build (`min_pattern` above 0, a view zoomed out
+/// a lot); a longer run is drawn continuous. A plot or export has no zoom (`min_pattern` is 0), so
+/// it keeps the pattern, bounded by [`MAX_ELEMENTS`] (#1069).
 const MAX_PERIODS: f64 = 50_000.0;
 
 /// Most pattern elements a run is laid out over (a long pattern repeated many times); beyond
@@ -37,10 +39,11 @@ const MAX_PERIODS: f64 = 50_000.0;
 const MAX_ELEMENTS: f64 = 2_000_000.0;
 
 /// The drawn stretches of a run `len` long, as (start, end) along it (a dot: start == end), in
-/// order; `None` when it is drawn continuous (shorter than one period). `pattern` is scaled.
-fn layout(len: f64, pattern: &[f64], how: Layout) -> Option<Vec<(f64, f64)>> {
+/// order; `None` when it is drawn continuous (shorter than one period, or repeating too often).
+/// `pattern` is scaled; `min_pattern` is the caller's (see [`MAX_PERIODS`]).
+fn layout(len: f64, pattern: &[f64], how: Layout, min_pattern: f64) -> Option<Vec<(f64, f64)>> {
     let period: f64 = pattern.iter().map(|d| d.abs()).sum();
-    if !(len.is_finite() && period > 1e-12) || len < period || len / period > MAX_PERIODS {
+    if !(len.is_finite() && period > 1e-12) || len < period || (min_pattern > 0.0 && len / period > MAX_PERIODS) {
         return None;
     }
     if (len / period + 2.0) * pattern.len() as f64 > MAX_ELEMENTS {
@@ -212,7 +215,7 @@ pub fn apply(pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: f64) -> Vec<V
 
 /// [`apply`] with the run laid out as `how` says.
 pub fn apply_as(pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Vec<Vec<Vec2>> {
-    let laid = if pts.len() >= 2 { scaled(lt, scale, min_pattern).and_then(|p| layout(length(pts), &p, how)) } else { None };
+    let laid = if pts.len() >= 2 { scaled(lt, scale, min_pattern).and_then(|p| layout(length(pts), &p, how, min_pattern)) } else { None };
     match laid {
         Some(r) => cut(pts, &r),
         None => vec![pts.to_vec()],
@@ -222,9 +225,9 @@ pub fn apply_as(pts: &[Vec2], lt: &Linetype, scale: f64, min_pattern: f64, how: 
 /// The dashes of the pattern along a run of length `len` laid out as `how` says, as (start, end)
 /// distances; a dot has start == end. Laid out like [`apply_as`]. `None` when the run is drawn
 /// continuous: shorter than one period, a scaled pattern shorter than `min_pattern`, or too many
-/// repeats.
+/// repeats (see [`MAX_PERIODS`]).
 pub fn ranges(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Option<Vec<(f64, f64)>> {
-    if len > 0.0 { scaled(lt, scale, min_pattern).and_then(|p| layout(len, &p, how)) } else { None }
+    if len > 0.0 { scaled(lt, scale, min_pattern).and_then(|p| layout(len, &p, how, min_pattern)) } else { None }
 }
 
 /// Where the pattern starts on a run `len` long laid out as `how`, and how much it is stretched:
@@ -232,7 +235,7 @@ pub fn ranges(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout
 pub fn phase(len: f64, lt: &Linetype, scale: f64, min_pattern: f64, how: Layout) -> Option<(f64, f64)> {
     let pattern = scaled(lt, scale, min_pattern)?;
     let period: f64 = pattern.iter().map(|d| d.abs()).sum();
-    layout(len, &pattern, how)?;
+    layout(len, &pattern, how, min_pattern)?;
     let first = pattern.first().copied().unwrap_or(0.0);
     Some(match how {
         Layout::Open => {
@@ -297,7 +300,7 @@ mod tests {
     /// joined (a plot draws them as one stroke).
     fn drawn(len: f64, pattern: &[f64], how: Layout) -> Vec<(f64, f64)> {
         let mut out: Vec<(f64, f64)> = Vec::new();
-        for (a, b) in layout(len, pattern, how).unwrap_or_else(|| vec![(0.0, len)]) {
+        for (a, b) in layout(len, pattern, how, 0.0).unwrap_or_else(|| vec![(0.0, len)]) {
             match out.last_mut() {
                 Some(last) if (last.1 - a).abs() < 1e-9 && b > a && last.1 > last.0 => last.1 = b,
                 _ => out.push((a, b)),
@@ -425,5 +428,24 @@ mod tests {
             assert_eq!(ranges(4000.0, &lt, 1.0, 0.0, how), None, "{how:?}");
             assert!(ranges(40.0, &lt, 1.0, 0.0, how).is_some_and(|r| r.len() > 10_000), "{how:?}");
         }
+    }
+
+    /// A plot or export keeps the dashes of a run more than 50,000 periods long; a display build,
+    /// with a level of detail, draws it continuous (#1069).
+    #[test]
+    fn a_plot_keeps_the_dashes_of_a_run_of_many_periods() {
+        let lt = Linetype::simple("DASHED", "", &[0.5, -0.25]);
+        let len = 50_001.0 * 0.75;
+        // Centred, the first and last dashes are halves: one more dash than periods.
+        for (how, dashes) in [(Layout::Open, 50_002), (Layout::Closed { anchor: 0.0 }, 50_001)] {
+            assert_eq!(ranges(len, &lt, 1.0, 0.0, how).map(|r| r.len()), Some(dashes), "{how:?}");
+            assert_eq!(ranges(len, &lt, 1.0, 1e-9, how), None, "{how:?}");
+            // Where linetype texts are placed from.
+            assert!(phase(len, &lt, 1.0, 0.0, how).is_some(), "{how:?}");
+            assert_eq!(phase(len, &lt, 1.0, 1e-9, how), None, "{how:?}");
+        }
+        let pts = [Vec2::ZERO, Vec2::new(len, 0.0)];
+        assert_eq!(apply(&pts, &lt, 1.0, 0.0).len(), 50_002);
+        assert_eq!(apply(&pts, &lt, 1.0, 1e-9).len(), 1);
     }
 }

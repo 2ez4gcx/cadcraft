@@ -41,6 +41,20 @@ fn wide_polyline_dashes_are_filled_bands() {
 }
 
 #[test]
+fn a_band_more_than_50000_periods_long_keeps_its_dashes_without_a_level_of_detail() {
+    // 50,001 DASHED periods: two thirds of the band is dashes (0.5 of each 0.75, the end ones
+    // halves), as a plot or export draws it; a display build, with a level of detail, draws it
+    // whole (#1069).
+    let len = 50_001.0 * 0.75;
+    let d = drawing(&[0.0, len], "DASHED", false);
+    let dashed = area(&tris(&d));
+    assert!((dashed - 0.2 * len * 2.0 / 3.0).abs() < 1e-4, "{dashed}");
+    let l = build(&d, &Space::Model, &Options { min_dash: 1e-6, ..Default::default() });
+    let whole = area(&l.prims.iter().filter(|p| p.kind == Kind::Tris).flat_map(|p| l.points(p).to_vec()).collect::<Vec<_>>());
+    assert!((whole - 0.2 * len).abs() < 1e-4, "{whole}");
+}
+
+#[test]
 fn a_closed_plinegen_band_is_stretched_around_as_a_thin_one_is() {
     // A closed 10.5 square is 42 around: 56 DASHED periods laid from its second vertex, 10.5 along
     // (a whole number of periods), so the first side has dashes at 0-0.5, 0.75-1.25…; laid as an
