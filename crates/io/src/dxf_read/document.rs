@@ -183,7 +183,7 @@ pub(super) fn read_blocks(
 }
 
 /// Read the OBJECTS section into `objs`, and each LAYOUT into `layout_objs`.
-pub(super) fn read_objects(tags: &[Tag], objs: &mut Objects, layout_objs: &mut Vec<LayoutDef>) {
+pub(super) fn read_objects<'a>(tags: &'a [Tag], objs: &mut Objects<'a>, layout_objs: &mut Vec<LayoutDef>) {
     for (k, tg) in record_slices(tags) {
         objs.add(&k, tg);
         if k == "LAYOUT" {

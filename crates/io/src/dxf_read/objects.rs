@@ -4,8 +4,12 @@ use super::document::sortents_table;
 use super::{Drawing, EntityKind, Group, Handle, HashMap, MLeaderStyle, PageSetup, Rx, Tag, Ucs, Vec2, Vec3};
 
 /// Non-graphical objects applied once every entity is placed.
+///
+/// The records it keeps until then are slices of the file's tag list, which the reader holds
+/// for as long as this lives, not copies of it: a file of large records would otherwise hold
+/// their groups twice while it opens (#1922).
 #[derive(Default)]
-pub(super) struct Objects {
+pub(super) struct Objects<'a> {
     /// Dictionary entry handle (upper case) → entry name.
     names: HashMap<String, String>,
     /// (dictionary handle, entry handle), both upper case, in the order the dictionaries list them.
@@ -13,17 +17,17 @@ pub(super) struct Objects {
     /// SCALE objects (the annotation scale list), in file order.
     scales: Vec<cadcraft_doc::AnnoScale>,
     /// XRECORD handle (upper case) → its groups.
-    xrecords: HashMap<String, Vec<Tag>>,
+    xrecords: HashMap<String, &'a [Tag]>,
     /// XRECORD handles in file order.
     xrecord_order: Vec<String>,
     /// TABLESTYLE objects: (handle, groups).
-    table_styles: Vec<(String, Vec<Tag>)>,
+    table_styles: Vec<(String, &'a [Tag])>,
     /// DIMASSOC objects.
-    dimassocs: Vec<Vec<Tag>>,
+    dimassocs: Vec<&'a [Tag]>,
     /// MLEADERSTYLE objects: (handle, groups).
-    mleader_styles: Vec<(String, Vec<Tag>)>,
+    mleader_styles: Vec<(String, &'a [Tag])>,
     /// GROUP objects: (handle, groups).
-    groups: Vec<(String, Vec<Tag>)>,
+    groups: Vec<(String, &'a [Tag])>,
     /// Saved paper-space views of layouts: (layout name, view).
     layout_views: Vec<(String, (Vec2, f64))>,
     /// Layouts' current UCSs: (layout name, origin, X axis, Y axis, named UCS record handle).
@@ -36,8 +40,8 @@ pub(super) struct Objects {
 
 pub(super) const MAX_OBJECTS: usize = 1_000_000;
 
-impl Objects {
-    pub(super) fn add(&mut self, kind: &str, tags: &[Tag]) {
+impl<'a> Objects<'a> {
+    pub(super) fn add(&mut self, kind: &str, tags: &'a [Tag]) {
         let h = T(tags).s(5).map(|h| h.trim().to_ascii_uppercase()).unwrap_or_default();
         match kind {
             "SCALE" if self.scales.len() < cadcraft_doc::MAX_SCALES => {
@@ -68,14 +72,14 @@ impl Objects {
                 }
             }
             "XRECORD" if self.xrecords.len() < MAX_OBJECTS => {
-                if self.xrecords.insert(h.clone(), tags.to_vec()).is_none() {
+                if self.xrecords.insert(h.clone(), tags).is_none() {
                     self.xrecord_order.push(h);
                 }
             }
-            "TABLESTYLE" if self.table_styles.len() < MAX_OBJECTS => self.table_styles.push((h, tags.to_vec())),
-            "DIMASSOC" if self.dimassocs.len() < MAX_OBJECTS => self.dimassocs.push(tags.to_vec()),
-            "MLEADERSTYLE" if self.mleader_styles.len() < MAX_OBJECTS => self.mleader_styles.push((h, tags.to_vec())),
-            "GROUP" if self.groups.len() < MAX_OBJECTS => self.groups.push((h, tags.to_vec())),
+            "TABLESTYLE" if self.table_styles.len() < MAX_OBJECTS => self.table_styles.push((h, tags)),
+            "DIMASSOC" if self.dimassocs.len() < MAX_OBJECTS => self.dimassocs.push(tags),
+            "MLEADERSTYLE" if self.mleader_styles.len() < MAX_OBJECTS => self.mleader_styles.push((h, tags)),
+            "GROUP" if self.groups.len() < MAX_OBJECTS => self.groups.push((h, tags)),
             "WIPEOUTVARIABLES" => self.wipeout_frame = T(tags).i(70).filter(|v| (0..=2).contains(v)),
             "SORTENTSTABLE" if self.sortents.len() < MAX_OBJECTS => {
                 if let Some(t) = sortents_table(tags) {
@@ -127,10 +131,10 @@ impl Objects {
         let ours = |tags: &[Tag]| owner(tags).is_some_and(|o| dicts.contains(o.as_str()));
         // By lower-case name: the first entry's name and the last entry's record, in dictionary order.
         let mut first: HashMap<String, &String> = HashMap::new();
-        let mut last: HashMap<String, &Vec<Tag>> = HashMap::new();
+        let mut last: HashMap<String, &[Tag]> = HashMap::new();
         for (dict, h) in &self.entry_order {
             if dicts.contains(dict.as_str())
-                && let (Some(name), Some(tags)) = (self.names.get(h), self.xrecords.get(h))
+                && let (Some(name), Some(tags)) = (self.names.get(h), self.xrecords.get(h).copied())
                 && ours(tags)
             {
                 first.entry(name.to_ascii_lowercase()).or_insert(name);
@@ -141,7 +145,7 @@ impl Objects {
         let mut taken = std::collections::HashSet::new();
         let mut budget = crate::dxf_layer_states::MAX_COPIED_BYTES;
         for h in &self.xrecord_order {
-            let (Some(tags), Some(name)) = (self.xrecords.get(h), self.names.get(h)) else { continue };
+            let (Some(tags), Some(name)) = (self.xrecords.get(h).copied(), self.names.get(h)) else { continue };
             if out.len() >= crate::dxf_ext::MAX_LAYER_STATES {
                 break;
             }
@@ -470,4 +474,62 @@ fn layout_view(tags: &[Tag]) -> Option<(Vec2, f64)> {
     let list = crate::dxf_ext::xdata_list(crate::dxf_ext::xdata(tags, crate::dxf_ext::APP), "PSVIEW");
     let g = |c: i32| list.iter().find(|t| t.code == c).map(Tag::f64).filter(|v| v.is_finite());
     Some((Vec2::new(g(1010)?, g(1020)?), g(1040)?))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A file from another writer with one record of each kind [`Objects`] keeps until the drawing
+    /// is built: a LINE, a linear DIMENSION whose DIMASSOC ties its first point to the line's
+    /// start, and, named in the root dictionary, CADCraft's current multileader style record (an
+    /// XRECORD), a table style, a multileader style and a group holding the line.
+    const DXF: &str = "0\nSECTION\n2\nENTITIES\n\
+        0\nLINE\n5\n1F\n8\n0\n10\n0\n20\n0\n30\n0\n11\n10\n21\n0\n31\n0\n\
+        0\nDIMENSION\n5\n2A\n8\n0\n100\nAcDbDimension\n10\n10\n20\n5\n30\n0\n70\n0\n\
+        100\nAcDbAlignedDimension\n13\n0\n23\n0\n33\n0\n14\n10\n24\n0\n34\n0\n100\nAcDbRotatedDimension\n\
+        0\nENDSEC\n0\nSECTION\n2\nOBJECTS\n\
+        0\nDICTIONARY\n5\nC\n330\n0\n100\nAcDbDictionary\n\
+        3\nCADCRAFT_MLEADERSTYLE\n350\nA1\n3\nMine\n350\nA2\n3\nArrows\n350\nA4\n3\nPair\n350\nA5\n\
+        0\nXRECORD\n5\nA1\n330\nC\n100\nAcDbXrecord\n280\n1\n1\nArrows\n\
+        0\nTABLESTYLE\n5\nA2\n330\nC\n100\nAcDbTableStyle\n3\nmine\n\
+        0\nDIMASSOC\n5\nA3\n330\n0\n100\nAcDbDimAssoc\n330\n2A\n90\n1\n1\nAcDbOsnapPointRef\n72\n13\n331\n1F\n\
+        0\nMLEADERSTYLE\n5\nA4\n330\nC\n100\nAcDbMLeaderStyle\n44\n2.5\n\
+        0\nGROUP\n5\nA5\n330\nC\n100\nAcDbGroup\n300\nnote\n70\n0\n71\n1\n340\n1F\n\
+        0\nENDSEC\n0\nEOF\n";
+
+    /// The kept records are slices of the file's tag list, not copies of it (#1922): a file of
+    /// large records would otherwise hold their groups twice while it opens.
+    #[test]
+    fn kept_records_are_slices_of_the_tag_list() {
+        let tags = craft_dxf::parse(DXF.as_bytes()).unwrap();
+        let section = craft_dxf::section_slices(&tags).into_iter().find(|s| s.name == "OBJECTS").unwrap();
+        let mut objs = Objects::default();
+        crate::dxf_read::document::read_objects(section.tags, &mut objs, &mut Vec::new());
+        let list = tags.as_ptr_range();
+        let kept: [(&str, &[Tag]); 5] = [
+            ("XRECORD", objs.xrecords["A1"]),
+            ("TABLESTYLE", objs.table_styles[0].1),
+            ("DIMASSOC", objs.dimassocs[0]),
+            ("MLEADERSTYLE", objs.mleader_styles[0].1),
+            ("GROUP", objs.groups[0].1),
+        ];
+        for (kind, record) in kept {
+            assert!(record.first().is_some_and(|t| t.code == 5), "{kind}: the whole record, from its handle");
+            assert!(list.contains(&record.as_ptr()), "{kind} is a copy of the tag list");
+        }
+    }
+
+    /// Each kind of kept record still reaches the drawing.
+    #[test]
+    fn each_kept_record_kind_reaches_the_drawing() {
+        let d = crate::dxf_read::read(DXF.as_bytes()).unwrap();
+        let line = Handle::parse_hex("1F").unwrap();
+        assert_eq!(d.header.str("CMLEADERSTYLE", ""), "Arrows", "XRECORD");
+        assert!(d.table_styles.iter().any(|s| s.name == "Mine"), "TABLESTYLE");
+        let dim = d.entity(Handle::parse_hex("2A").unwrap()).map(|e| &e.kind);
+        assert!(matches!(dim, Some(EntityKind::Dimension(dm)) if dm.assoc.iter().any(|a| a.handle == line && a.point == "p13")), "DIMASSOC: {dim:?}");
+        assert!(d.mleader_styles.iter().any(|s| s.name == "Arrows" && (s.arrow_size - 2.5).abs() < 1e-9), "MLEADERSTYLE");
+        assert!(d.groups.iter().any(|g| g.name == "Pair" && g.description == "note" && g.members == [line]), "GROUP");
+    }
 }
